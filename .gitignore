@@ -1,0 +1,11 @@
+# IGNORE FILSE WITH THESE EXTENSION:
+*.out
+*.outb
+*.npz
+*.pdf
+*.sum.yaml
+
+# IGNORE DIRECTORIES
+OP_output/
+turbine_acoustic_data/
+farm_acoustic_data/
