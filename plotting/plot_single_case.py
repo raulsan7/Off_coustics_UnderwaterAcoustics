@@ -1,3 +1,5 @@
+from turtle import title
+
 import numpy as np
 import matplotlib.pyplot as plt
 import plotting.plot_utils as pu
@@ -437,17 +439,19 @@ def plot_cylinder(case            : dict = None,        # [-] Dictionary contain
     mode = mode.upper()
     fig, ax = plt.subplots(figsize=figsize)
 
+    title_extra = ""
     # Select mode
     if mode == 'OASPL':
         vals = au.pressure_to_OASPL(p, p_ref, absorption, Freqs, distances)
         unit_label = r"OASPL [dB re 1$\mu$ Pa]"
 
     elif mode == 'SWL':
-        pass
+        print("plot_cylinder(): SWL not yet implemented")
     else:
         idx = np.argmin(np.abs(Freqs - target_frequency))
         f = Freqs[idx]
         p = p[idx,:]
+        title_extra = f"at {f:.2f} Hz"
 
         vals, unit_label = pu.convert_to(p, mode)
 
@@ -463,15 +467,148 @@ def plot_cylinder(case            : dict = None,        # [-] Dictionary contain
     cbar = fig.colorbar(contour_set, ax=ax, orientation='vertical', pad=0.02)
     cbar.set_label(unit_label)
 
-    ax.set_xlabel('Theta [deg]')
-    ax.set_ylabel('Height / Depth [m]')
-    ax.set_title(f"{tag} - {mode}")
+    ax.set_xlabel(r'Azimuth Angle, $\theta$ [deg]')
+    ax.set_ylabel('Depth, z [m]')
+    ax.set_title(f"{tag} - {mode} {title_extra}")
     ax.set_xlim(theta_plot.min(), theta_plot.max())
     ax.set_ylim(z.min(), z.max())
     ax.set_xticks(np.arange(0, 361, 45))
 
     fig.tight_layout()
     return fig, ax
+
+
+# ---------- Linear Plots ---------- #
+def plot_distance_decay(case            : dict  = None,         # [-] Dictionary containing simulation data
+                        mode            : str   = 'OASPL',      # [-] Magnitude to plot: 'OASPL', 'SPL', 'SWL', 'ABS', 'REAL', 'IMAG', 'PHASE'
+                        target_frequency: float = 0.88,         # [Hz] Target frequency for single-frequency modes
+                        absorption      : bool  = True,         # [-] Whether to apply absorption attenuation
+                        filter_under    : float = None,         # [Hz] Lower frequency cutoff (f >= filter_under)
+                        filter_over     : float = None,         # [Hz] Upper frequency cutoff (f <= filter_over)
+                        turbine_data    : bool  = False,        # [-] Wheter to plot additional turbine data from GE 2025 
+                        figsize         : tuple = (10,5)):      # [-] Figure size
+    """
+    Plots acoustic magnitude decay over distance (1D line plot).
+
+    Returns
+    -------
+    fig, ax : matplotlib.figure.Figure, matplotlib.axes.Axes
+    """
+
+    print("WARNING plot_distance_decay(): Debug floating and floating shallow NO MATCH TO PREVIOUS DATA")
+
+    if not case["has_decay"]:
+        print("plot_distance_decay(): no decay data, skipping")
+        return None, None
+
+    tag = case["Case_type"]
+
+    # Extract data
+    p         = case["P_decay"]
+    Freqs     = case["Freqs"]
+    observers = case["Obs_decay"]
+    r         = case["Distances_decay"]
+    z         = case["Z_decay"]
+    rlim      = case["Distances_decay"]
+    p_ref     = case["p_ref"]
+    do_log    = case["Logspace_decay"]
+
+    Nfreqs, Nr = len(Freqs), len(r)
+
+    # Filter frequencies
+    freq_mask = np.ones(Nfreqs, dtype=bool)
+    if filter_under is not None:
+        freq_mask &= (Freqs >= filter_under)
+    if filter_over is not None:
+        freq_mask &= (Freqs <= filter_over)
+    if not np.any(freq_mask):
+        print("plot_distance_decay(): no frequencies match the specified filter bounds!")
+        return None, None
+
+    p, Freqs = p[freq_mask], Freqs[freq_mask]
+    Nfreqd = len(Freqs)
+
+    mode = mode.upper()
+    fig, ax = plt.subplots(figsize=figsize)
+    title_extra = ""
+    color = pu.get_case_color(case)
+
+    # Select mode
+    if mode == 'OASPL':
+        vals = au.pressure_to_OASPL(p, p_ref, absorption, Freqs, r)
+        unit_label = r"OASPL [dB re $\mu$ Pa]"
+    else:
+        idx = np.argmin(np.abs(Freqs - target_frequency))
+        f   = Freqs[idx]
+        p   = p[idx,:]
+        title_extra = f"at {f:.2f} Hz"
+
+        vals, unit_label = pu.convert_to(p, mode)
+        if absorption and mode == 'SPL': vals = au.add_absorption(f, vals, r)
+
+    # Plot
+    if do_log:
+        ax.semilogx(r, vals, lw=2, color=color)
+        min_val = vals.min()
+        if not turbine_data:
+            ref_vals_1 = vals[0] - 10 * np.log10(np.maximum(r, np.finfo(float).eps) / r[0])
+            ref_vals_2 = vals[0] - 20 * np.log10(np.maximum(r, np.finfo(float).eps) / r[0])
+            ax.semilogx(r, ref_vals_1, '--', color='black', alpha=0.8, lw=1.2, label=r"$1/r$")
+            ax.semilogx(r, ref_vals_2, '--', color='black', alpha=0.8, lw=1.2, label=r"$1/r^2$")
+            min_val = min(ref_vals_2.min(), vals.min())
+    else:
+        ax.plot(r, vals, lw=2, color=color)
+        min_val = vals.min()
+        if not turbine_data:
+            ref_vals_1 = vals[0] - 10 * np.log10(np.maximum(r, np.finfo(float).eps) / r[0])
+            ref_vals_2 = vals[0] - 20 * np.log10(np.maximum(r, np.finfo(float).eps) / r[0])
+            ax.plot(r, ref_vals_1, '--', color='black', alpha=0.8, lw=1.2, label=r"$1/r$")
+            ax.plot(r, ref_vals_2, '--', color='black', alpha=0.8, lw=1.2, label=r"$1/r^2$")
+            min_val = min(ref_vals_2.min(), vals.min())
+
+    # Plot data from Ge2025
+    if turbine_data:
+        TURBINE_STYLES = pu.get_tubine_styles()
+        all_turbine_x, all_turbine_y = [], []
+        for (data, label, marker, color) in TURBINE_STYLES:
+            ax.scatter(data[:, 0], data[:, 1],
+                    marker=marker, color=color, s=40,
+                    alpha=1.0, zorder=5, label=label, edgecolors='k', linewidths=0.3)
+
+            all_turbine_x.append(data[:,0])
+            all_turbine_y.append(data[:,1])
+
+        # Regresion
+        tx, ty = np.concatenate(all_turbine_x), np.concatenate(all_turbine_y)
+
+        log_tx = np.log10(tx)
+        a, b   = np.polyfit(log_tx, ty, 1)
+        x_fit  = np.logspace(np.log10(tx.min()), np.log10(tx.max()), len(r))
+        y_fit  = a * np.log10(x_fit) + b
+
+        ax.semilogx(x_fit, y_fit, lw=2.0, color="lightcoral", ls="--", alpha=0.5, label="Regresion -20.4 dB/decade")
+
+
+
+
+
+    ax.grid(True, which='both', ls='--', alpha=0.7)
+    ax.fill_between(r, vals, min_val, alpha=0.1, color=color)
+
+    ax.set_xlabel("Distance, r [m]")
+    ax.set_ylabel(unit_label)
+    ax.set_title(f"{tag} - {mode} {title_extra}")
+    ax.set_xlim(r.min(), r.max())
+    ax.set_ylim(bottom=min_val)
+
+    fig.tight_layout()
+
+    return fig, ax
+
+
+
+
+    
 
 
         

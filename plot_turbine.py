@@ -12,7 +12,8 @@ def main():
     # p.plot_structure(case, mode="3D")
     # p.plot_spectrum(case, do_thresholds=False)
     # p.plot_polar(case)
-    p.plot_cylinder(case)
+    # p.plot_cylinder(case, mode='SPL')
+    p.plot_distance_decay(case, filter_under=1.0)
     plt.show()
     
 

@@ -331,4 +331,15 @@ def convert_to(p,                       # [Hz] Pressure array shape(NFreqs, Nobs
 
     return vals, unit_label
 
+def get_tubine_styles():
+    from utils.EnvironmentalData import Turbine_noise
+    Tripile, Gravity_based, Monopile, Jacket, Suction_bucket = Turbine_noise()
+    TURBINE_STYLES = [
+        (Tripile,        "Tripile (Ge 2025)",        "s", "gold"      ),
+        (Gravity_based,  "Gravity based (Ge 2025)",  "o", "limegreen" ),
+        (Monopile,       "Monopile (Ge 2025)",       "^", "darkred"   ),
+        (Jacket,         "Jacket (Ge 2025)",         "v", "steelblue" ),
+        (Suction_bucket, "Suction bucket (Ge 2025)", "D", "silver"    ),
+    ]
 
+    return TURBINE_STYLES
