@@ -56,8 +56,9 @@ class DTU10MWMonopile(WindTurbine):
         super().__init__(*args, **kwargs)
 
         self.D = 9.0            # [m] Turbine diameter
-        self.rho_wat = 1025.0   # [kg/m^3] Water density 
-        self.rho_mat = 8500.0   # [kg/m^3] Material density
+        self.rho_wat  = 1025.0   # [kg/m^3] Water density 
+        self.rho_mat  = 8500.0   # [kg/m^3] Material density
+        self.wet_area = 848.12   # [m^2] Wetted area
 
         # Hardcode where data should be located
         self._path_rpm = Path.cwd().resolve() / "wind_speed_curves_DTU_10MW" / "rpm_ws.csv"
@@ -274,12 +275,13 @@ class DTU10MWFloating(WindTurbine):
 
         super().__init__(*args, **kwargs)
 
-        self.col_D   = 14.5     # [m] Comlumns diameter
-        self.Xseca   = 10.875   # [m] Pontoon width
-        self.Xsecb   = 7.0      # [m] Pontoon height
-        self.rho_wat = 1025.0   # [kg/m^3] Water density 
-        self.rho_mat = 7850.0   # [kg/m^3] Material density
-        self.t       = 0.023    # [m] Wall thickness
+        self.col_D    = 14.5     # [m] Comlumns diameter
+        self.Xseca    = 10.875   # [m] Pontoon width
+        self.Xsecb    = 7.0      # [m] Pontoon height
+        self.rho_wat  = 1025.0   # [kg/m^3] Water density 
+        self.rho_mat  = 7850.0   # [kg/m^3] Material density
+        self.t        = 0.023    # [m] Wall thickness
+        self.wet_area = 9359.07   # [m^2] Wetted area
         
         self.col_members = [[0,1],[2,3],[4,5]]  # [-] Column members ID list
         self.pon_members = [[6],[7],[8]]        # [-] Pontoon members ID lists
@@ -639,6 +641,7 @@ class SAITEC2MWFloating(WindTurbine):
         self.t             = 1.0            # [m] Wall thickness
         self.float_members = [[0,1],[3,4]]  # [-] Floaters members ID lists
         self.joint_members = [[5,2],[6]]    # [-] Virtual joint (rigid links) members ID lists
+        self.wet_area      = None
         print("SAITEC2MWFloating.__init__(): CHECK IF BARIPOS IS WELL COMPUTED, SHOULD BE (-8.9586, 0)")
 
         # Hardcode where data should be located

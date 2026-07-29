@@ -13,7 +13,12 @@ def main():
     # p.plot_spectrum(case, do_thresholds=False)
     # p.plot_polar(case)
     # p.plot_cylinder(case, mode='SPL')
-    p.plot_distance_decay(case, filter_under=1.0)
+    # p.plot_distance_decay(case, filter_under=1.0)
+    # p.plot_line(case, mode='phase')
+    # p.plot_sliceXY(case)
+    # p.plot_sliceXZ(case)
+    # p.compute_sphere_metrics(case)
+    p.compute_cylinder_metrics(case)
     plt.show()
     
 

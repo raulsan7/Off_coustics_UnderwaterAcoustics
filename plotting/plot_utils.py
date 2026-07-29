@@ -311,7 +311,7 @@ def convert_to(p,                       # [Hz] Pressure array shape(NFreqs, Nobs
 
     if mode == "SPL":
         vals = au.pressure_to_SPL(p)
-        unit_label = r"SPL [db re 1 $\mu$Pa]"
+        unit_label = r"SPL [dB re 1 $\mu$Pa]"
     elif mode == "ABS":
         vals = np.abs(p)
         unit_label = r"Magnitude [Pa]"
@@ -323,6 +323,8 @@ def convert_to(p,                       # [Hz] Pressure array shape(NFreqs, Nobs
         unit_label = r"Imaginary Part [Pa]"
     elif mode == "PHASE":
         vals = np.angle(p, deg=True)
+        if np.any(vals < -90) and np.any(vals > 90):
+            vals = np.mod(vals, 360)
         unit_label = r"Phase [deg]"
     else:
         print(f"plot_polar(): Unrecognized mode '{mode}', defaulting to 'SPL'")
