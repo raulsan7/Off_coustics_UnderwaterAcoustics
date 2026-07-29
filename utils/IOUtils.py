@@ -208,6 +208,31 @@ def read_input_SD(filename: str = None,             # [-] Path to OpenFAST SubDy
 
     return Time, array, units
 
+def read_input_AD(filename: str = None,             # [-] Path to OpenFAST output file
+                  what    : str = "Fn",             # [-] Name of the output to read
+                  skip    : int = 1,                # [-] Skips time data e.g. Time[::skip]
+                  Nnodes  : int = None,             # [-] Number of nodes in the blade
+                  Blade   : int = 1,                # [-] Number of blade to output
+                  From    : int = 0.0,              # [-] Starts reading from here (0. <= From < 1.) 
+                  Upto    : int = 1.0,              # [-] Ends up reading     here (0. < Upto <= 1.) 
+                  verbose : int = False):           # [-] Flag to print more info
+    """
+    Reads all nodes outputs from .out/.outb
+    """
+
+    if Nnodes <= 0:
+        raise ValueError("IOUtils.read_input_AD(): Nnodes must be a positive integer")
+
+    string = f"AB{Blade}N"
+    outputchannels = []
+
+    for i in range(Nnodes):
+        outputchannels.append(f"{string}{i + 1:03d}"+what)
+
+    Time, array, units = parse_channels_auto(filename, outputchannels, From=From, Upto=Upto, verbose=verbose)
+
+    return Time, array, units
+
 def parse_channels_auto(full_path         : str = None,     # [-] Path to OpenFAST output file
                         plotChannels      : list = None,    # [-] List of OpenFAST channels to output
                         From              : float = 0.0,    # [-] Starts reading from here (0. <= From < 1.) 
