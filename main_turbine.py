@@ -72,8 +72,7 @@ def main() -> None:
 
     t.read_input(verbose=True)
     t.compute_force(verbose=True, filter_freqs=True)
-
-    acoustic_model = MethodImages(system=t, N_images=1, Upper_HBC=0., Lower_HBC=-t.Depth)
+    acoustic_model = MethodImages(system=t, N_images=30, Upper_HBC=0., Lower_HBC=-t.Depth)
     t.set_acoustic_method(acoustic_model)
     # t.run_spectrums(z_obs=-15.0)
     # t.run_polar(z=-15.0)

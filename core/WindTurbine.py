@@ -334,7 +334,7 @@ class WindTurbine(abc.ABC):
     def run_spectrums(self, 
                       observers  : np.ndarray = None,   # [m] Observers coordinates array to compute pressure at shape(:,3)
                       z_obs      : float      = None,   # [m] General z coordinate for observers 
-                      print_every: int        = 1):     # [-] Print info every specific number of observers
+                      block_size: int         = 4):     # [-] Print info every specific number of observers
         """
         Compute pressure frequency spectra at specific observer coordinates.
 
@@ -371,7 +371,7 @@ class WindTurbine(abc.ABC):
         nf   = len(self.Freqs)
         Nobs = observers.shape[0] 
         p = np.zeros((nf, Nobs), dtype=complex)
-        p = self.acoustic_solver.compute_pressure(observers, print_every)
+        p = self.acoustic_solver.compute_pressure(observers, block_size)
 
         if self.debug: print("Spectrum Pressure Norm: ", np.linalg.norm(p))
 
@@ -391,7 +391,7 @@ class WindTurbine(abc.ABC):
                   z          : float      = None,       # [m] z-plane where circle is located
                   n_theta    : int        = 72,         # [-] Number of observers algo the circunference
                   center     : np.ndarray = None,       # [m] Coordinates of the center in z-plane shape (2,)
-                  print_every: int        = 10):        # [-] Print info every specific number of observers
+                  block_size: int         = 16):        # [-] Print info every specific number of observers
         """
         Compute pressure on a circular horizontal ring at fixed depth.
 
@@ -433,7 +433,7 @@ class WindTurbine(abc.ABC):
         Nf = len(self.Freqs)
         print(f"\nComputing polar pressure (r={r} m, center=({cx:.2f},{cy:.2f}) m, z={z} m), observers={n_theta}...")
         p = np.zeros((Nf, n_theta), dtype=complex)
-        p = self.acoustic_solver.compute_pressure(observers, print_every)
+        p = self.acoustic_solver.compute_pressure(observers, block_size)
 
         if self.debug: print("Polar Pressure Norm: ", np.linalg.norm(p))
 
@@ -457,7 +457,7 @@ class WindTurbine(abc.ABC):
                      n_theta: int        = 72,      # [-] Number of observers in azimuthal direction
                      nz     : int        = 20,      # [-] Number of observers in z-direction
                      center : np.ndarray = None,    # [m] Cylinder axis x and y coordinates shape(2,)
-                     print_every: int    = 100):    # [-] Print info every specific number of observers
+                     block_size: int     = 256):    # [-] Print info every specific number of observers
         """
         Compute pressure field on the lateral surface of a vertical cylinder.
 
@@ -503,7 +503,7 @@ class WindTurbine(abc.ABC):
         Nobs = len(observers)
         print(f"\nComputing cylindrical pressure (r={r} m, center=({cx:.2f},{cy:.2f}) m, grid={n_theta}x{nz}={Nobs} obs)...")
         p    = np.zeros((Nf, Nobs), dtype=complex)
-        p    = self.acoustic_solver.compute_pressure(observers, print_every)       
+        p    = self.acoustic_solver.compute_pressure(observers, block_size)       
         
         # Reshape to (,n_theta, Nobs, )
         observers = observers.reshape((n_theta, nz, 3))
@@ -537,7 +537,7 @@ class WindTurbine(abc.ABC):
                   n_points   : int        = 200,            # [-] Number of points in the line
                   z          : float      = None,           # [m] Depth at which line is located
                   logspace   : bool       = True,           # [-] Wheter spacing is logarithmic or linear
-                  print_every: int        = 20):            # [-] Print info every specific number of observers
+                  block_size : int        = 64):            # [-] Print info every specific number of observers
         """
         Compute pressure decay along the wind direction.
 
@@ -584,7 +584,7 @@ class WindTurbine(abc.ABC):
         Nf = len(self.Freqs)
         print(f"\nComputing distance decay (points={n_points}, direction={self.WindDir} deg, z={z} m)...")
         p = np.zeros((Nf, n_points), dtype=complex)
-        p = self.acoustic_solver.compute_pressure(observers, print_every)
+        p = self.acoustic_solver.compute_pressure(observers, block_size)
 
         if self.debug: print("Decay Pressure Norm: ", np.linalg.norm(p))
 
@@ -608,7 +608,7 @@ class WindTurbine(abc.ABC):
                  p2         : np.ndarray = None,        # [m] Second point coordinate
                  n_points   : int        = None,        # [-] Number of points along the line
                  logspace   : bool       = False,       # [-] Wheter distribution is logarithmic or linear
-                 print_every: int        = None):       # [-] Print info every specific number of observers
+                 block_size : int        = 64):       # [-] Print info every specific number of observers
         """
         Compute pressure along a straight line between two user-defined points.
 
@@ -640,7 +640,7 @@ class WindTurbine(abc.ABC):
                 n_points = np.floor(distance/5.0)
             else:
                 n_points = np.floor(distance)
-        print_every = np.floor(n_points/10)
+        if block_size is None: block_size = int(np.floor(n_points/10))
         n_points = int(n_points)
 
         # Create observers array
@@ -661,7 +661,7 @@ class WindTurbine(abc.ABC):
         Nf = len(self.Freqs)
         print(f"\nComputing line (points={n_points}), p1={p1} m, p2={p2} m)...")
         p = np.zeros((Nf, n_points), dtype=complex)
-        p = self.acoustic_solver.compute_pressure(observers, print_every)
+        p = self.acoustic_solver.compute_pressure(observers, block_size)
 
         if self.debug: print("Line Pressure Norm: ", np.linalg.norm(p))
 
@@ -688,7 +688,7 @@ class WindTurbine(abc.ABC):
                     xlim       : np.ndarray = [-500., 500.],    # [m] x-direction range
                     ylim       : np.ndarray = [-500., 500.],    # [m] y-direction range
                     center     : np.ndarray = None,             # [m] Coordinates of the center of the plane
-                    print_every: int        = 100):             # [-] Print info every specific number of observers
+                    block_size : int        = 128):             # [-] Print info every specific number of observers
         """
         Compute pressure field on a horizontal plane at constant depth `z`.
 
@@ -745,7 +745,7 @@ class WindTurbine(abc.ABC):
         Nf = len(self.Freqs)
         print(f"\nComputing XY slice (nx={nx}, ny={ny}, z={z} m, center=({cx:.1f}, {cy:.1f}) m)...")
         p = np.zeros((Nf,len(observers)), dtype=complex)
-        p = self.acoustic_solver.compute_pressure(observers, print_every)
+        p = self.acoustic_solver.compute_pressure(observers, block_size)
 
         if self.debug: print("SliceXY Pressure Norm: ", np.linalg.norm(p))
         
@@ -776,7 +776,7 @@ class WindTurbine(abc.ABC):
                     nz         : int        = 26,               # []- Number of points along z (depth)
                     xlim       : np.ndarray = [-500., 500.],    # [m] x-range
                     zlim       : np.ndarray = None,             # [m] z-range (surface to seabed)
-                    print_every: int        = 100):             # [-] Print info every specific number of observers
+                    block_size: int         = 128):             # [-] Print info every specific number of observers
         """
         Compute pressure field on a vertical plane at constant y-coordinate.
 
@@ -820,7 +820,7 @@ class WindTurbine(abc.ABC):
         Nf = len(self.Freqs)
         print(f"\nComputing XZ slice (nx={nx}, nz={nz}, y={y:.1f} m, z from {zlim[0]:.1f} to {zlim[1]:.1f} m)...")
         p = np.zeros((Nf, len(observers)), dtype=complex)
-        p = self.acoustic_solver.compute_pressure(observers, print_every)
+        p = self.acoustic_solver.compute_pressure(observers, block_size)
 
         # Reshape 
         observers = observers.reshape((nx, nz, 3))
@@ -848,7 +848,7 @@ class WindTurbine(abc.ABC):
                    n_theta    : int        = 72,        # [-] Number of points in azimuthal direction
                    nz         : int        = 20,        # [-] Number of vertical layers
                    center     : np.ndarray = None,      # [m] Coordinates of the center
-                   print_every: int        = 100):      # [-] Print info every specific number of observers
+                   block_size: int        = 128):      # [-] Print info every specific number of observers
         """
         Compute pressure on a spherical surface in free-field (no reflections).
 
@@ -923,7 +923,7 @@ class WindTurbine(abc.ABC):
         
         self.acoustic_solver.set_N_images(0)
         p = np.zeros((Nf, N_obs), dtype=complex)
-        p = self.acoustic_solver.compute_pressure(observers, print_every)
+        p = self.acoustic_solver.compute_pressure(observers, block_size)
         self.acoustic_solver.restore_default_images()
 
         if self.debug: print("Sphere Pressure Norm: ", np.linalg.norm(p))
@@ -954,31 +954,31 @@ class WindTurbine(abc.ABC):
                 # ---- run_spectrums ----
                 spectrums_observers   : np.ndarray = None,
                 spectrums_z_obs       : float      = None,
-                spectrums_print_every : int        = 1,
+                spectrums_block_size : int        = 4,
                 # ---- run_polar ----
                 polar_r               : float      = 500.,
                 polar_z               : float      = None,
                 polar_n_theta         : int        = 72,
                 polar_center          : np.ndarray = None,
-                polar_print_every     : int        = 10,
+                polar_block_size     : int        = 16,
                 # ---- run_cylinder ----
                 cylinder_r            : float      = 500,
                 cylinder_n_theta      : int        = 72,
                 cylinder_nz           : int        = 20,
                 cylinder_center       : np.ndarray = None,
-                cylinder_print_every  : int        = 100,
+                cylinder_block_size  : int        = 256,
                 # ---- run_decay ----
                 decay_distance        : np.ndarray = [10., 500.],
                 decay_n_points        : int        = 200,
                 decay_z               : float      = None,
                 decay_logspace        : bool       = True,
-                decay_print_every     : int        = 20,
+                decay_block_size     : int        = 64,
                 # ---- run_line ----
                 line_p1               : np.ndarray = None,
                 line_p2               : np.ndarray = None,
                 line_n_points         : int        = None,
                 line_logspace         : bool       = False,
-                line_print_every      : int        = None,
+                line_block_size      : int        = None,
                 # ---- run_sliceXY ----
                 sliceXY_z             : float      = None,
                 sliceXY_nx            : int        = 26,
@@ -986,20 +986,20 @@ class WindTurbine(abc.ABC):
                 sliceXY_xlim          : np.ndarray = [-500., 500.],
                 sliceXY_ylim          : np.ndarray = [-500., 500.],
                 sliceXY_center        : np.ndarray = None,
-                sliceXY_print_every   : int        = 100,
+                sliceXY_block_size   : int        = 128,
                 # ---- run_sliceXZ ----
                 sliceXZ_y             : float      = None,
                 sliceXZ_nx            : int        = 26,
                 sliceXZ_nz            : int        = 26,
                 sliceXZ_xlim          : np.ndarray = [-500., 500.],
                 sliceXZ_zlim          : np.ndarray = None,
-                sliceXZ_print_every   : int        = 100,
+                sliceXZ_block_size   : int        = 128,
                 # ---- run_sphere ----
                 sphere_r              : float      = 30.,
                 sphere_n_theta        : int        = 72,
                 sphere_nz             : int        = 20,
                 sphere_center         : np.ndarray = None,
-                sphere_print_every    : int        = 100):
+                sphere_block_size    : int        = 128):
         """
         Run all standard acoustic post-processing steps in sequence.
 
@@ -1028,7 +1028,7 @@ class WindTurbine(abc.ABC):
         self.run_spectrums(
             observers   = spectrums_observers,
             z_obs       = spectrums_z_obs,
-            print_every = spectrums_print_every
+            block_size = spectrums_block_size
         )
 
         # ----- 2. Polar -----
@@ -1038,7 +1038,7 @@ class WindTurbine(abc.ABC):
             z           = polar_z,
             n_theta     = polar_n_theta,
             center      = polar_center,
-            print_every = polar_print_every
+            block_size = polar_block_size
         )
 
         # ----- 3. Decay -----
@@ -1048,7 +1048,7 @@ class WindTurbine(abc.ABC):
             n_points    = decay_n_points,
             z           = decay_z,
             logspace    = decay_logspace,
-            print_every = decay_print_every
+            block_size = decay_block_size
         )
 
         # ----- 4. Line -----
@@ -1058,7 +1058,7 @@ class WindTurbine(abc.ABC):
             p2          = line_p2,
             n_points    = line_n_points,
             logspace    = line_logspace,
-            print_every = line_print_every
+            block_size = line_block_size
         )
 
         # ----- 5. Sphere -----
@@ -1068,7 +1068,7 @@ class WindTurbine(abc.ABC):
             n_theta     = sphere_n_theta,
             nz          = sphere_nz,
             center      = sphere_center,
-            print_every = sphere_print_every
+            block_size = sphere_block_size
         )
 
         # ----- 6. Slice XY -----
@@ -1080,7 +1080,7 @@ class WindTurbine(abc.ABC):
             xlim        = sliceXY_xlim,
             ylim        = sliceXY_ylim,
             center      = sliceXY_center,
-            print_every = sliceXY_print_every
+            block_size = sliceXY_block_size
         )
 
         # ----- 7. Slice XZ -----
@@ -1091,7 +1091,7 @@ class WindTurbine(abc.ABC):
             nz          = sliceXZ_nz,
             xlim        = sliceXZ_xlim,
             zlim        = sliceXZ_zlim,
-            print_every = sliceXZ_print_every
+            block_size = sliceXZ_block_size
         )
 
         # ----- 8. Cylinder -----
@@ -1101,7 +1101,7 @@ class WindTurbine(abc.ABC):
             n_theta     = cylinder_n_theta,
             nz          = cylinder_nz,
             center      = cylinder_center,
-            print_every = cylinder_print_every
+            block_size = cylinder_block_size
         )
 
         print(f"\n{'='*50}")

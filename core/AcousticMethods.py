@@ -9,7 +9,9 @@ Date: 07/2026
 """
 
 import abc
+from tracemalloc import start
 import numpy as np
+from scipy import cluster
 
 
 class AcousticSolver(abc.ABC):
@@ -47,7 +49,8 @@ class MethodImages(AcousticSolver):
                  attenuation_upper: float = 1.,     # [-] Attenuation coefficient for upper boundary reflections
                  attenuation_lower: float = 0.5,    # [-] Attenuation coefficient for lower boundary reflections
                  eps              : float = 1e-12,  # [-] Regularization term to avoid division by zero in distances
-                 p_ref            : float = 1e-6):
+                 p_ref            : float = 1e-6,
+                 cluster          : bool = False):
 
         # Parse input
         self.N_images  = N_images
@@ -61,6 +64,7 @@ class MethodImages(AcousticSolver):
         self.lw_R      = attenuation_lower
         self.eps       = eps
         self.p_ref     = p_ref
+        self.cluster = cluster
         self._default_N_images = N_images
 
         if Lower_HBC is None or Upper_HBC is None or Upper_HBC <= Lower_HBC:
@@ -151,8 +155,8 @@ class MethodImages(AcousticSolver):
     
     # ========== COMPUTE PRESSURE ========== #
     def compute_pressure(self,
-                         observers  : np.ndarray = None,        # [m] Observers coordinates array to compute pressure at shape(:,3)
-                         print_every: int        = 10):         # [-] Print info every specific number of observers
+                         observers : np.ndarray = None,        # [m] Observers coordinates array shape(:,3)
+                         block_size: int        = 256):        # [-] Number of observers to process simultaneously
         """
         Compute acoustic pressure at observer positions for a given source system.
 
@@ -175,21 +179,33 @@ class MethodImages(AcousticSolver):
         no = len(observers)
         total_pressure = np.zeros((nf, no), dtype=complex)
 
+        if not self.cluster: block_size = 1
+
         # Linear superposition
         for nturb, turbine in enumerate(self.turbines):
 
-            p_turb = np.zeros_like(total_pressure)
             if len(self.turbines) > 1 : print(f"\nTurbine {nturb+1}/{len(self.turbines)}: ")
 
-            for idx, obs in enumerate(observers):
+            # Extract precomputed geometry
+            nodes_pos, force, BC_all = self.image_systems[turbine]
+            total_blocks = int(np.ceil(no / block_size))
 
-                nodes_pos, force, BC_all = self.image_systems[turbine]
-                p_turb[:, idx] = self.dipole_pressure_images(obs, turbine.Freqs, nodes_pos, force, BC_all)
+            for start_idx in range(0, no, block_size):
+                end_idx = min(start_idx + block_size, no)
+                obs_block = observers[start_idx:end_idx]
 
-                if (idx+1) % print_every == 0: 
-                    print(f"  Progress: {idx + 1}/{no}")
-                
-            total_pressure += p_turb
+                # Compute pressure for the entire block at once
+                p_block = self.dipole_pressure_images(obs_block, turbine.Freqs, nodes_pos, force, BC_all)
+                total_pressure[:, start_idx:end_idx] += p_block
+
+                # Print progress per block
+                if self.cluster:
+                    current_block = (start_idx // block_size) + 1
+                    print(f"  Progress: Block {current_block}/{total_blocks} ({end_idx}/{no} observers)")
+                else:
+                    if end_idx % 100 == 0 or end_idx == no:
+                        print(f"  Progress: ({end_idx}/{no} observers)")
+
         return total_pressure
 
 
@@ -239,12 +255,7 @@ class MethodImages(AcousticSolver):
         parent : ndarray of int, shape (Nnodes * (1 + 2*N),)
             Index of the original real node from which each node originates.
         """
-        
-        # Upper_BC, Lower_BC   = self.Upper_BC, self.Lower_BC
-        # Upper_HBC, Lower_HBC = self.Upper_HBC, self.Lower_HBC
-        # attenuation_upper    = self.up_R
-        # attenuation_lower    = self.lw_R
-
+    
         zi = np.asarray(zi, dtype=float)
         Nnodes = zi.size
         Nfreqs = Force.shape[0]
@@ -322,36 +333,36 @@ class MethodImages(AcousticSolver):
         return z_all, Force_out, parent, BC_all
 
     def dipole_pressure_images(self, 
-                               observer_pos  : np.ndarray = None,   # [m] Observer coordinates shape(3,)
+                               observer_pos  : np.ndarray = None,   # [m] Observer coordinates shape(Nchunk,3)
                                freq          : np.ndarray = None,   # [Hz] Frequency array shape(nfreqs,)
                                nodes_pos     : np.ndarray = None,   # [m] Coordinates array for all dipole nodes shape(Nnodes_total, 3)
                                force         : np.ndarray = None,   # [N] Force array shape(nfreqs, Nnodes, 3)
                                BC_all        : np.ndarray = None):  # [-] Array with all boundary conditions
 
-        # Distance vectors from each node to observer shape(3, Nnodes_total)
-        r_vec = observer_pos[:, np.newaxis] - nodes_pos
+        # Distance vectors from each node to observer shape(Nchunk, 3, Nnodes_total)
+        r_vec = observer_pos[:, :, np.newaxis] - nodes_pos[np.newaxis, :, :]
 
-        # Scalar distance shape(Nnodes_total)
-        r = np.linalg.norm(r_vec, axis=0)
+        # Scalar distance shape(Nchunk, Nnodes_total)
+        r = np.linalg.norm(r_vec, axis=1)
         r = np.where(r<self.eps, self.eps, r)       # Avoid division by 0
 
         # Wavenumber shape(Nfreqs)
         k = 2 * np.pi * freq / self.c_wat
 
         # Project force across propagation direction shape(Nfeqs, Nnodes_total)
-        F_dor_r = np.einsum('fjd,jd->fd', force, r_vec) / r
+        F_dor_r = np.einsum('fjd, ojd -> fod', force, r_vec) / r[np.newaxis, :, :]
 
-        # Dipolar term from Green shape(Nfreqs, Nnodes_total)
-        term1 = -1j * k[:, np.newaxis] + 1./r
+        # Dipolar term from Green shape(Nfreqs, Nchunk, Nnodes_total)
+        term1 = -1j * k[:, np.newaxis, np.newaxis] + 1./r[np.newaxis, :, :]
 
-        # Phase + Green shape(Nfreqs, Nnodes_total)
-        green = np.exp(1j * k[:, np.newaxis] * r) / (4. * np.pi * r)
+        # Phase + Green shape(Nfreqs, Nchunk, Nnodes_total)
+        green = np.exp(1j * k[:, np.newaxis, np.newaxis] * r[np.newaxis, :, :]) / (4. * np.pi * r[np.newaxis, :, :])
 
-        # Pressure per node
-        p_nodes = F_dor_r * term1 * green * BC_all
+        # Pressure per node shape(Nfreqs, Nchunk, Nnodes_total)
+        p_nodes = F_dor_r * term1 * green * BC_all[np.newaxis, np.newaxis, :]
 
         # Sum all nodes contribution
-        return np.sum(p_nodes, axis=1)
+        return np.sum(p_nodes, axis=2)
 
 
 
