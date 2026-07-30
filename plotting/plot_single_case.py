@@ -182,8 +182,6 @@ def plot_spectrum(case         : dict  = None,      # [-] Dictionary containing 
     AxisPos   = case["AxisPos"]
     p_ref     = case["p_ref"]
 
-    print(p)
-
     # Distance to turbine axis
     distances = np.sqrt((Observers[:,0] - AxisPos[0])**2 + (Observers[:,1] - AxisPos[1])**2)
 
@@ -464,6 +462,7 @@ def plot_cylinder(case            : dict = None,        # [-] Dictionary contain
 
     # Matplotlib contour expects Z shape (len(y), len(x)), so transpose vals_plot
     contour_set = ax.contourf(theta_plot, z, vals_plot.T, levels=60, cmap=cmap)
+    ax.contour(theta_plot, z, vals_plot.T, levels=30, colors='k', linewidths=0.4, alpha=0.5)
     cbar = fig.colorbar(contour_set, ax=ax, orientation='vertical', pad=0.02)
     cbar.set_label(unit_label)
 
@@ -494,8 +493,6 @@ def plot_distance_decay(case            : dict  = None,         # [-] Dictionary
     -------
     fig, ax : matplotlib.figure.Figure, matplotlib.axes.Axes
     """
-
-    print("WARNING plot_distance_decay(): Debug floating and floating shallow NO MATCH TO PREVIOUS DATA")
 
     if not case["has_decay"]:
         print("plot_distance_decay(): no decay data, skipping")
@@ -550,20 +547,20 @@ def plot_distance_decay(case            : dict  = None,         # [-] Dictionary
     if do_log:
         ax.semilogx(r, vals, lw=2, color=color)
         min_val = vals.min()
-        if not turbine_data:
+        if not turbine_data or True:
             ref_vals_1 = vals[0] - 10 * np.log10(np.maximum(r, np.finfo(float).eps) / r[0])
             ref_vals_2 = vals[0] - 20 * np.log10(np.maximum(r, np.finfo(float).eps) / r[0])
-            ax.semilogx(r, ref_vals_1, '--', color='black', alpha=0.8, lw=1.2, label=r"$1/r$")
-            ax.semilogx(r, ref_vals_2, '--', color='black', alpha=0.8, lw=1.2, label=r"$1/r^2$")
+            ax.semilogx(r, ref_vals_1, '--', color=color, alpha=0.4, lw=1.0, label=r"$1/r$")
+            ax.semilogx(r, ref_vals_2, '--', color=color, alpha=0.4, lw=1.0, label=r"$1/r^2$")
             min_val = min(ref_vals_2.min(), vals.min())
     else:
         ax.plot(r, vals, lw=2, color=color)
         min_val = vals.min()
-        if not turbine_data:
+        if not turbine_data or True:
             ref_vals_1 = vals[0] - 10 * np.log10(np.maximum(r, np.finfo(float).eps) / r[0])
             ref_vals_2 = vals[0] - 20 * np.log10(np.maximum(r, np.finfo(float).eps) / r[0])
-            ax.plot(r, ref_vals_1, '--', color='black', alpha=0.8, lw=1.2, label=r"$1/r$")
-            ax.plot(r, ref_vals_2, '--', color='black', alpha=0.8, lw=1.2, label=r"$1/r^2$")
+            ax.plot(r, ref_vals_1, '--', color=color, alpha=0.4, lw=1.0, label=r"$1/r$")
+            ax.plot(r, ref_vals_2, '--', color=color, alpha=0.4, lw=1.0, label=r"$1/r^2$")
             min_val = min(ref_vals_2.min(), vals.min())
 
     # Plot data from Ge2025
@@ -577,6 +574,7 @@ def plot_distance_decay(case            : dict  = None,         # [-] Dictionary
 
             all_turbine_x.append(data[:,0])
             all_turbine_y.append(data[:,1])
+            min_val = min(min_val, data[:,1].min()*0.95)
 
         # Regresion
         tx, ty = np.concatenate(all_turbine_x), np.concatenate(all_turbine_y)
@@ -708,7 +706,7 @@ def plot_sliceXY(case            : dict  = None,         # [-] Dictionary contai
     fig, ax : matplotlib.figure.Figure, matplotlib.axes.Axes
     """
 
-    print("WARNING plot_sliceXY(): Debug floating and floating shallow NO MATCH TO PREVIOUS DATA")
+    print("DRAW STRUCTURE")
     if not case["has_slicexy"]:
         print("plot_sliceXY(): no XY slice data, skipping")
         return None, None
@@ -795,6 +793,7 @@ def plot_sliceXZ(case            : dict  = None,         # [-] Dictionary contai
     """
 
     print("WARNING plot_sliceXZ(): Debug floating and floating shallow NO MATCH TO PREVIOUS DATA")
+    print("DRAW STRUCTURE")
     if not case["has_slicexz"]:
         print("plot_sliceXZ(): no XZ slice data, skipping")
         return None, None
@@ -1103,8 +1102,6 @@ def compute_cylinder_metrics(case            : dict  = None,         # [-] Dicti
 
     return metrics
 
-def hola_lucia():
-    print()
         
 
 

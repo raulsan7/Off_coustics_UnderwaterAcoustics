@@ -30,15 +30,14 @@ from core.TurbineTypes import DTU10MWFloating, DTU10MWMonopile, SAITEC2MWFloatin
 
 def main() -> None:
 
-    # t = DTU10MWMonopile(
-    #     rootname   = "DTU_DeltaWind_mn_ws11.4",
-    #     save_name  = "plot_mn_SD30",
-    #     WindSpeed  = 11.4,
-    #     Depth      = 30.0,
-    #     Nmembers   = 8,
-    #     Nnodes     = 5,
-    #     save_dir   = "test"
-    # )
+    t = DTU10MWMonopile(
+        rootname   = "DTU_DeltaWind_mn_ws11.4",
+        save_name  = "plot_mn_SD30",
+        WindSpeed  = 11.4,
+        Depth      = 30.0,
+        Nmembers   = 8,
+        Nnodes     = 5,
+    )
 
     # t = DTU10MWFloating(
     #     rootname   = "DTU_DeltaWind_fl_ws11.4",
@@ -58,14 +57,14 @@ def main() -> None:
     #     Nnodes     = 9,
     # )
 
-    t = SAITEC2MWFloating(
-        rootname = "SENVION_2MW_fl_ws15.0",
-        save_name = "SAITEC",
-        WindSpeed = 15.,
-        Depth = 80.,
-        Nmembers = 7,
-        Nnodes = 9
-    )
+    # t = SAITEC2MWFloating(
+    #     rootname = "SENVION_2MW_fl_ws15.0",
+    #     save_name = "SAITEC",
+    #     WindSpeed = 15.,
+    #     Depth = 80.,
+    #     Nmembers = 7,
+    #     Nnodes = 9
+    # )
 
     t.read_input(verbose=True)
     t.compute_force(verbose=True, filter_freqs=True)

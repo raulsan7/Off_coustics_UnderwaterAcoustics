@@ -114,10 +114,10 @@ class MethodImages(AcousticSolver):
             p_turb = np.zeros_like(total_pressure)
             if len(turbines) > 1 : print(f"\nTurbine {nturb+1}/{len(turbines)}: ")
 
-            turbine.impedance_correction(self.c_wat)    # Apply impedance correction to source
+            Local_corrected_F = turbine.get_impedance_corrected_force(self.c_wat)    # Apply impedance correction to source
             for idx, obs in enumerate(observers):
 
-                p_turb[:, idx] = self.dipole_pressure_images(turbine.x, obs, turbine.Freqs, turbine.F)
+                p_turb[:, idx] = self.dipole_pressure_images(turbine.x, obs, turbine.Freqs, Local_corrected_F)
 
                 if (idx+1) % print_every == 0: 
                     print(f"  Progress: {idx + 1}/{no}")

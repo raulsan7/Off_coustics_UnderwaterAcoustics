@@ -248,7 +248,7 @@ class WindTurbine(abc.ABC):
         pass    # This method is implemented in the subclass of TurbineTypes.py
 
     @abc.abstractmethod
-    def impedance_correction(self,
+    def get_impedance_corrected_force(self,
                              c_wat: float = 1500):  # [m/s] Speed of sound in fluid. Default: water --> 1500
         """
         Computes an impedance correction for F = gamma*m*a
@@ -378,7 +378,7 @@ class WindTurbine(abc.ABC):
 
         self.save_acoustics()
         print(f"\n --> Spectrum data saved at {self._save_path}")
-        del self.acoustic_data; self.acoustic_data = {}
+        
 
         return self
 
@@ -442,7 +442,7 @@ class WindTurbine(abc.ABC):
 
         self.save_acoustics()
         print(f"\n --> Polar data saved at {self._save_path}")
-        del self.acoustic_data; self.acoustic_data = {}
+        
 
         return self
 
@@ -497,8 +497,7 @@ class WindTurbine(abc.ABC):
         Nobs = len(observers)
         print(f"\nComputing cylindrical pressure (r={r} m, center=({cx:.2f},{cy:.2f}) m, grid={n_theta}x{nz}={Nobs} obs)...")
         p    = np.zeros((Nf, Nobs), dtype=complex)
-        p    = self.acoustic_solver.compute_pressure(self, observers, print_every)
-        
+        p    = self.acoustic_solver.compute_pressure(self, observers, print_every)       
         
         # Reshape to (,n_theta, Nobs, )
         observers = observers.reshape((n_theta, nz, 3))
@@ -521,7 +520,7 @@ class WindTurbine(abc.ABC):
 
         self.save_acoustics()
         print(f"\nCylinder data saved at {self._save_path}")
-        del self.acoustic_data; self.acoustic_data = {}
+        
 
         return self
 
@@ -590,7 +589,7 @@ class WindTurbine(abc.ABC):
 
         self.save_acoustics()
         print(f"\nDecay data saved at {self._save_path}")
-        del self.acoustic_data; self.acoustic_data = {}
+        
 
         return self
 
@@ -666,7 +665,7 @@ class WindTurbine(abc.ABC):
 
         self.save_acoustics()
         print(f"\nLine data saved at {self._save_path}")
-        del self.acoustic_data; self.acoustic_data = {}
+        
 
         return self
 
@@ -753,7 +752,7 @@ class WindTurbine(abc.ABC):
 
         self.save_acoustics()
         print(f"\nSlice xy data saved at {self._save_path}")
-        del self.acoustic_data; self.acoustic_data = {}
+        
 
         return self
 
@@ -825,7 +824,6 @@ class WindTurbine(abc.ABC):
 
         self.save_acoustics()
         print(f"\nSlice XZ data saved at {self._save_path}")
-        del self.acoustic_data; self.acoustic_data = {}
 
         return self    
 
@@ -931,7 +929,7 @@ class WindTurbine(abc.ABC):
 
         self.save_acoustics()
         print(f"Sphere data saved at {self._save_path}")
-        del self.acoustic_data; self.acoustic_data = {}
+        
 
         return self
 

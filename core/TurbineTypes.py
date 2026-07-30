@@ -230,7 +230,7 @@ class DTU10MWMonopile(WindTurbine):
 
         return mask_freqs_to_use
 
-    def impedance_correction(self,
+    def get_impedance_corrected_force(self,
                              c_wat: float = 1500):  # [m/s] Speed of sound in fluid. Default: water --> 1500
         
         from utils.MathUtils import alpha_hankel
@@ -238,8 +238,9 @@ class DTU10MWMonopile(WindTurbine):
         omega = 2* np.pi * self.Freqs                       # [rad/s] Angular frequency
         k     = omega / c_wat                               # [1/m]   Wavenumber
         alpha = alpha_hankel(k, self.D)
-        self.F = self.F * np.abs(alpha[:, np.newaxis, np.newaxis])  # [N] Corrected force shape (Nfreqs, Nnodes_wet, 3)
-        return self
+        corrected_force = self.F * np.abs(alpha[:, np.newaxis, np.newaxis])  # [N] Corrected force shape (Nfreqs, Nnodes_wet, 3)
+
+        return corrected_force
 # ------------------------------------ #
 
 
@@ -533,7 +534,7 @@ class DTU10MWFloating(WindTurbine):
 
         return mask_freqs_to_use
 
-    def impedance_correction(self,
+    def get_impedance_corrected_force(self,
                              c_wat: float = 1500):  # [m/s] Speed of sound in fluid. Default: water --> 1500
 
         from utils.MathUtils import alpha_hankel
@@ -580,12 +581,12 @@ class DTU10MWFloating(WindTurbine):
             if len(node_idx) > 0:
                 alpha_full[:, node_idx] = alpha_pon[:, np.newaxis]
         
-        self.F = self.F * np.abs(alpha_full[:, :, np.newaxis])  # [N] Corrected force shape (Nfreqs, Nnodes_wet, 3)
+        corrected_force = self.F * np.abs(alpha_full[:, :, np.newaxis])  # [N] Corrected force shape (Nfreqs, Nnodes_wet, 3)
 
         alpha_full, original_to_wet, k, omega = None, None, None, None
 
 
-        return self
+        return corrected_force
 # ------------------------------------ #
 
 
@@ -834,7 +835,7 @@ class SAITEC2MWFloating(WindTurbine):
 
         return mask_freqs_to_use
 
-    def impedance_correction(self,
+    def get_impedance_corrected_force(self,
                              c_wat: float = 1500):  # [m/s] Speed of sound in fluid. Default: water --> 1500
 
         from utils.MathUtils import alpha_hankel
@@ -844,11 +845,11 @@ class SAITEC2MWFloating(WindTurbine):
         D_eff = np.sqrt(self.Diam_y*self.Diam_z)/2.
 
         alpha_floats = alpha_hankel(k, D_eff)
-        self.F = self.F * np.abs(alpha_floats[:,np.newaxis, np.newaxis])
+        corrected_force = self.F * np.abs(alpha_floats[:,np.newaxis, np.newaxis])
 
         self.pos_0_raw, k, omega = None, None, None
 
-        return self
+        return corrected_force
 # ------------------------------------ #
 
 
