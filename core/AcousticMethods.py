@@ -49,6 +49,7 @@ class MethodImages(AcousticSolver):
                  eps              : float = 1e-12,  # [-] Regularization term to avoid division by zero in distances
                  p_ref            : float = 1e-6):
 
+        # Parse input
         self.N_images  = N_images
         self.c_wat     = c_wat
         self.rho_wat   = rho_wat
@@ -60,6 +61,7 @@ class MethodImages(AcousticSolver):
         self.lw_R      = attenuation_lower
         self.eps       = eps
         self.p_ref     = p_ref
+        self._default_N_images = N_images
 
         if Lower_HBC is None or Upper_HBC is None or Upper_HBC <= Lower_HBC:
             raise ValueError(f"MethodImages requires Upper_HBC({Upper_HBC}) > Lower_HBC ({Lower_HBC})")
@@ -73,9 +75,13 @@ class MethodImages(AcousticSolver):
         else:
             self.turbines = [system]
 
+        # Precompute impedance correction
         self.corrected_F = {}
         for turbine in self.turbines:
             self.corrected_F[turbine] = turbine.get_impedance_corrected_force(self.c_wat)
+
+        # Precompute System of Images
+        self._build_all_image_system()
             
 
     # ========== HELPERS ========== #
@@ -89,6 +95,59 @@ class MethodImages(AcousticSolver):
         """
 
         return "Images Method"
+
+    def _build_all_image_system(self):
+
+        self.image_systems = {}
+        for turbine in self.turbines:
+            self.image_systems[turbine] = self._build_image_system(turbine.x, self.corrected_F[turbine])
+
+        return self
+    
+    def _build_image_system(self,
+                            nodes_pos_real: np.ndarray = None,      # [m] Coordinates of all dipolar sources
+                            force         : np.ndarray = None):     # [N] Force array af all dipolar sources
+        """
+        Precomputes full 3D image geometry, forces, and boundary conditions.
+        """
+
+        # Ensure shape. For this method has to be shape(Nfreqs, 3, Nnodes)
+        if force.shape[2] == 3: force = force.transpose(0,2,1)
+
+        # Extract z coordinate for reflections
+        zi = nodes_pos_real[:,2]
+
+        # Compute reflections tree
+        z_all, Force_out, parent, BC_all = self.method_of_images(zi, force)
+
+        # Direct reconstruction of all image coordinates shape(3, Nnodes_total)
+        nodes_pos = np.empty((3, z_all.size))
+        nodes_pos[0,:] = nodes_pos_real[parent, 0]
+        nodes_pos[1,:] = nodes_pos_real[parent, 1]
+        nodes_pos[2,:] = z_all      
+
+        return nodes_pos, Force_out, BC_all
+
+    def set_N_images(self, 
+                     new_N_images: int = None):  # [-] New number of images to set
+        """
+        Dynamically changes the number of images and recomputes the geometry.
+        Useful for calculating direct fields (N_images=0)
+        """
+        self.N_images = new_N_images
+        self._build_all_image_system()
+
+        return self
+
+    def restore_default_images(self):
+        """
+        Restores the image system to its original state defined at initialization
+        """
+        if self.N_images != self._default_N_images:
+            self.N_images = self._default_N_images
+            self._build_all_image_system()
+
+        return self
     
     # ========== COMPUTE PRESSURE ========== #
     def compute_pressure(self,
@@ -112,8 +171,7 @@ class MethodImages(AcousticSolver):
             raise ValueError("MethodImages.compute_pressure(): observer must have shape(Nobservers, 3)")
 
         # Initialize pressure matrix
-        first_turbine = self.turbines[0]
-        nf = len(first_turbine.Freqs)
+        nf = len(self.turbines[0].Freqs)
         no = len(observers)
         total_pressure = np.zeros((nf, no), dtype=complex)
 
@@ -125,7 +183,8 @@ class MethodImages(AcousticSolver):
 
             for idx, obs in enumerate(observers):
 
-                p_turb[:, idx] = self.dipole_pressure_images(turbine.x, obs, turbine.Freqs, self.corrected_F[turbine])
+                nodes_pos, force, BC_all = self.image_systems[turbine]
+                p_turb[:, idx] = self.dipole_pressure_images(obs, turbine.Freqs, nodes_pos, force, BC_all)
 
                 if (idx+1) % print_every == 0: 
                     print(f"  Progress: {idx + 1}/{no}")
@@ -181,33 +240,30 @@ class MethodImages(AcousticSolver):
             Index of the original real node from which each node originates.
         """
         
-        Upper_BC, Lower_BC   = self.Upper_BC, self.Lower_BC
-        Upper_HBC, Lower_HBC = self.Upper_HBC, self.Lower_HBC
-        N                    = self.N_images
-        attenuation_upper    = self.up_R
-        attenuation_lower    = self.lw_R
+        # Upper_BC, Lower_BC   = self.Upper_BC, self.Lower_BC
+        # Upper_HBC, Lower_HBC = self.Upper_HBC, self.Lower_HBC
+        # attenuation_upper    = self.up_R
+        # attenuation_lower    = self.lw_R
 
         zi = np.asarray(zi, dtype=float)
         Nnodes = zi.size
         Nfreqs = Force.shape[0]
+        N                    = self.N_images
 
         total_nodes = Nnodes*(1+2*N)
 
         z_all     = np.zeros(total_nodes)
         Force_out = np.zeros((Nfreqs, 3, total_nodes), dtype=Force.dtype)
-        is_real   = np.zeros(total_nodes, dtype=bool)
         parent    = np.zeros(total_nodes, dtype=int)
         BC_all    = np.ones (total_nodes, dtype=int)
 
         idx = 0            # Global node counter
-
         for i_node in range(Nnodes):
             
             # --- Real Node --- #
             z_all[idx]         = zi[i_node]
             Force_out[:,:,idx] = Force[:,:,i_node]
             BC_all[idx]        = 1
-            is_real[idx]       = True
             parent[idx]        = i_node
 
             idx += 1
@@ -216,158 +272,86 @@ class MethodImages(AcousticSolver):
             z_upper = zi[i_node]
             z_lower = zi[i_node]
 
-            F_upper = Force[:, :, i_node]
-            F_lower = Force[:, :, i_node]
+            F_upper = Force[:, :, i_node].copy()
+            F_lower = Force[:, :, i_node].copy()
 
             last_plane_upper = "upper"
             last_plane_lower = "lower"
 
-            for level in range(1, N + 1):
+            for _ in range(1, N + 1):
 
                 # ---------- upper chain ----------
                 if last_plane_upper == "upper":
-                    z_upper = 2.0 * Lower_HBC - z_upper
-                    BC = Lower_BC
+                    z_upper = 2.0 * self.Lower_HBC - z_upper
+                    BC_u = self.Lower_BC
                     last_plane_upper = "lower"
                 else:
-                    z_upper = 2.0 * Upper_HBC - z_upper
-                    BC = Upper_BC
+                    z_upper = 2.0 * self.Upper_HBC - z_upper
+                    BC_u = self.Upper_BC
                     last_plane_upper = "upper"
 
-                F_upper = F_upper.copy()
                 F_upper[:, 2] *= -1.0
-                F_upper *= attenuation_upper
+                F_upper *= self.up_R
 
                 z_all[idx] = z_upper
                 Force_out[:, :, idx] = F_upper
-                BC_all[idx] = BC
-                is_real[idx] = False
+                BC_all[idx] = BC_u
                 parent[idx] = i_node
                 idx += 1
 
                 # ---------- lower chain ----------
                 if last_plane_lower == "lower":
-                    z_lower = 2.0 * Upper_HBC - z_lower
-                    BC = Upper_BC
+                    z_lower = 2.0 * self.Upper_HBC - z_lower
+                    BC_l = self.Upper_BC
                     last_plane_lower = "upper"
                 else:
-                    z_lower = 2.0 * Lower_HBC - z_lower
-                    BC = Lower_BC
+                    z_lower = 2.0 * self.Lower_HBC - z_lower
+                    BC_l = self.Lower_BC
                     last_plane_lower = "lower"
 
-                F_lower = F_lower.copy()
                 F_lower[:, 2] *= -1.0
-                F_lower *= attenuation_lower
+                F_lower *= self.lw_R
 
                 z_all[idx] = z_lower
                 Force_out[:, :, idx] = F_lower
-                BC_all[idx] = BC
-                is_real[idx] = False
+                BC_all[idx] = BC_l
                 parent[idx] = i_node
                 idx += 1
 
 
-        return z_all, Force_out, is_real, parent, BC_all
+        return z_all, Force_out, parent, BC_all
 
     def dipole_pressure_images(self, 
-                               nodes_pos_real: np.ndarray = None,   # [m] Coordinates array for all dipole nodes shape(Nnodes, 3)
                                observer_pos  : np.ndarray = None,   # [m] Observer coordinates shape(3,)
                                freq          : np.ndarray = None,   # [Hz] Frequency array shape(nfreqs,)
-                               force         : np.ndarray = None):  # [N] Force array shape(nfreqs, Nnodes, 3)
-        """
-        Calculate the acoustic pressure at an observer location due to dipole
-        sources and their images using the method of images.
+                               nodes_pos     : np.ndarray = None,   # [m] Coordinates array for all dipole nodes shape(Nnodes_total, 3)
+                               force         : np.ndarray = None,   # [N] Force array shape(nfreqs, Nnodes, 3)
+                               BC_all        : np.ndarray = None):  # [-] Array with all boundary conditions
 
-        This function generates an image system for dipole sources bounded by
-        two horizontal planes, then computes the total pressure field by
-        summing contributions from all real and image sources.
+        # Distance vectors from each node to observer shape(3, Nnodes_total)
+        r_vec = observer_pos[:, np.newaxis] - nodes_pos
 
-        Parameters
-        ----------
-        nodes_pos_real : ndarray, shape (Nnodes, 3)
-            Coordinates of the real source nodes (x, y, z).
+        # Scalar distance shape(Nnodes_total)
+        r = np.linalg.norm(r_vec, axis=0)
+        r = np.where(r<self.eps, self.eps, r)       # Avoid division by 0
 
-        observer_pos : ndarray, shape (3,)
-            Coordinates of the observer point (x, y, z).
+        # Wavenumber shape(Nfreqs)
+        k = 2 * np.pi * freq / self.c_wat
 
-        freq : ndarray, shape (Nfreqs,)
-            Frequencies at which to compute the pressure field [Hz].
+        # Project force across propagation direction shape(Nfeqs, Nnodes_total)
+        F_dor_r = np.einsum('fjd,jd->fd', force, r_vec) / r
 
-        force : ndarray, shape (Nfreqs, 3, Nnodes)
-            Frequency-domain force vectors (Fx, Fy, Fz) applied at each real node.
+        # Dipolar term from Green shape(Nfreqs, Nnodes_total)
+        term1 = -1j * k[:, np.newaxis] + 1./r
 
-        Upper_BC, Lower_BC : int
-            Boundary condition type at the upper and lower planes:
-            +1 : Neumann-type (normal derivative of pressure = 0)
-            -1 : Dirichlet-type (pressure = 0)
+        # Phase + Green shape(Nfreqs, Nnodes_total)
+        green = np.exp(1j * k[:, np.newaxis] * r) / (4. * np.pi * r)
 
-        Upper_HBC, Lower_HBC : float
-            z-coordinates of the upper and lower boundary planes.
+        # Pressure per node
+        p_nodes = F_dor_r * term1 * green * BC_all
 
-        N : int, optional
-            Number of image layers. Each real node generates 2*N image nodes.
-            Default is 1.
-
-        c0 : float, optional
-            Speed of sound in the medium [m/s]. Default is 1500 m/s.
-
-        eps : float, optional
-            Small regularization parameter to avoid division by zero when
-            computing distances. Default is 1e-12.
-
-        Returns
-        -------
-        p_total : ndarray, shape (Nfreqs,)
-            Complex pressure at the observer location for each frequency.
-            The real part represents the acoustic pressure in the time domain
-            for harmonic sources.
-        """
-        
-        eps = self.eps
-        c0 = self.c_wat
-
-
-        if force.shape[2] == 3: force = force.transpose(0, 2, 1)
-        
-        # Real z-coordinates
-        zi = nodes_pos_real[:, 2]
-
-        # Generate all nodes (real + images)
-        z_nodes_all, Force_all, is_real, parent, BC_all = self.method_of_images(zi, force)
-
-        N_nodes_total = z_nodes_all.size
-        N_freqs = freq.size
-
-        # Node positions: x,y from parent real node, z from image
-        nodes_pos = np.empty((3, N_nodes_total))
-        nodes_pos[0, :] = nodes_pos_real[parent, 0]
-        nodes_pos[1, :] = nodes_pos_real[parent, 1]
-        nodes_pos[2, :] = z_nodes_all
-
-        # Observer position relative to each node
-        r_vec = observer_pos[:, None] - nodes_pos
-        r_norm = np.linalg.norm(r_vec, axis=0)
-        r_norm = np.maximum(r_norm, eps)
-        r_hat = r_vec / r_norm[None, :]
-
-        # Wavenumber
-        k = 2 * np.pi * freq / c0
-
-        # Reshape arrays for broadcasting
-        r_norm_3d = r_norm[None, None, :]   # (1, 1, N_nodes_total)
-        k_3d = k[:, None, None]             # (N_freqs, 1, 1)
-
-        dot_product = np.einsum('in,fin->fn', r_hat, Force_all)[:,None,:]
-
-        # Dipole pressure kernel
-        amplitude = 1 / (4 * np.pi * r_norm_3d) * (-1j * k_3d + 1 / r_norm_3d)
-        phase = np.exp(1j * k_3d * r_norm_3d)
-
-        # Combine all terms and sum over nodes
-        p_individual = amplitude * dot_product * phase * BC_all
-        p_total = np.sum(p_individual, axis=(1, 2))
-
-        return p_total
+        # Sum all nodes contribution
+        return np.sum(p_nodes, axis=1)
 
 
 

@@ -35,6 +35,7 @@ class WindTurbine(abc.ABC):
 
     # ========== CONSTRUCTOR ========== #
     def __init__(self,
+                 debug     : bool = False,                              # [-] Using debug mode will print aditional data
                  rootname  : str = None,                                # [-] Name without extensions of the OpenFAST output files
                  output_dir: str = "./OP_output/",                      # [-] OpenFAST output directory   
                  save_dir  : str = "./turbine_acoustic_data/",          # [-] Directory to save acoustic results
@@ -67,6 +68,7 @@ class WindTurbine(abc.ABC):
         """
 
         # Input parameters
+        self.debug      = debug
         self.rootname   = rootname
         self.WindSpeed  = WindSpeed
         self.WindDir    = WindDir
@@ -370,7 +372,9 @@ class WindTurbine(abc.ABC):
         Nobs = observers.shape[0] 
         p = np.zeros((nf, Nobs), dtype=complex)
         p = self.acoustic_solver.compute_pressure(observers, print_every)
-        
+
+        if self.debug: print("Spectrum Pressure Norm: ", np.linalg.norm(p))
+
         # Save data
         self.acoustic_data["P_spectrums"]   = p
         self.acoustic_data["Obs_spectrums"] = observers
@@ -430,6 +434,8 @@ class WindTurbine(abc.ABC):
         print(f"\nComputing polar pressure (r={r} m, center=({cx:.2f},{cy:.2f}) m, z={z} m), observers={n_theta}...")
         p = np.zeros((Nf, n_theta), dtype=complex)
         p = self.acoustic_solver.compute_pressure(observers, print_every)
+
+        if self.debug: print("Polar Pressure Norm: ", np.linalg.norm(p))
 
         # Save data
         self.acoustic_data["Freqs"]           = self.Freqs
@@ -508,6 +514,8 @@ class WindTurbine(abc.ABC):
         dz     = (z.max() - z.min())/(nz-1) if nz > 1 else 1.0
         dA     = r * dz * dtheta   
 
+        if self.debug: print("Cylinder Pressure Norm: ", np.linalg.norm(p))
+
         # Save data
         self.acoustic_data["Freqs"]              = self.Freqs
         self.acoustic_data["P_cylinder"]         = p
@@ -577,6 +585,8 @@ class WindTurbine(abc.ABC):
         print(f"\nComputing distance decay (points={n_points}, direction={self.WindDir} deg, z={z} m)...")
         p = np.zeros((Nf, n_points), dtype=complex)
         p = self.acoustic_solver.compute_pressure(observers, print_every)
+
+        if self.debug: print("Decay Pressure Norm: ", np.linalg.norm(p))
 
         # Save data
         self.acoustic_data["Freqs"]           = self.Freqs
@@ -652,6 +662,8 @@ class WindTurbine(abc.ABC):
         print(f"\nComputing line (points={n_points}), p1={p1} m, p2={p2} m)...")
         p = np.zeros((Nf, n_points), dtype=complex)
         p = self.acoustic_solver.compute_pressure(observers, print_every)
+
+        if self.debug: print("Line Pressure Norm: ", np.linalg.norm(p))
 
         # Save data
         self.acoustic_data["Freqs"]          = self.Freqs
@@ -734,6 +746,8 @@ class WindTurbine(abc.ABC):
         print(f"\nComputing XY slice (nx={nx}, ny={ny}, z={z} m, center=({cx:.1f}, {cy:.1f}) m)...")
         p = np.zeros((Nf,len(observers)), dtype=complex)
         p = self.acoustic_solver.compute_pressure(observers, print_every)
+
+        if self.debug: print("SliceXY Pressure Norm: ", np.linalg.norm(p))
         
         # Reshape
         observers = observers.reshape((nx,ny,3))
@@ -811,6 +825,8 @@ class WindTurbine(abc.ABC):
         # Reshape 
         observers = observers.reshape((nx, nz, 3))
         p         = p.reshape((Nf, nx, nz))
+
+        if self.debug: print("SliceXZ Pressure Norm: ", np.linalg.norm(p))
 
         # Save data
         self.acoustic_data["Freqs"]       = self.Freqs
@@ -905,11 +921,12 @@ class WindTurbine(abc.ABC):
         print(f"  Centre: ({cx:.2f}, {cy:.2f}, {cz:.2f}) m")
         print(f"  Radius: {r:.2f} m  |  grid: {n_theta} azim x {nz} z  ({N_obs} observers)")
         
-        original_n_images = self.acoustic_solver.N_images       # Convert to 0 images for radiation
-        self.acoustic_solver.N_images = 0
+        self.acoustic_solver.set_N_images(0)
         p = np.zeros((Nf, N_obs), dtype=complex)
         p = self.acoustic_solver.compute_pressure(observers, print_every)
-        self.acoustic_solver.N_images = original_n_images
+        self.acoustic_solver.restore_default_images()
+
+        if self.debug: print("Sphere Pressure Norm: ", np.linalg.norm(p))
 
         # Reshape
         observers = observers.reshape((n_theta, nz,3))
