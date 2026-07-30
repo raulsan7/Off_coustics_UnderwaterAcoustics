@@ -37,6 +37,7 @@ def main() -> None:
         Depth      = 30.0,
         Nmembers   = 8,
         Nnodes     = 5,
+        save_dir   = "test"
     )
 
     # t = DTU10MWFloating(
@@ -69,7 +70,7 @@ def main() -> None:
     t.read_input(verbose=True)
     t.compute_force(verbose=True, filter_freqs=True)
 
-    acoustic_model = MethodImages(N_images=30, Upper_HBC=0., Lower_HBC=-t.Depth)
+    acoustic_model = MethodImages(system=t, N_images=30, Upper_HBC=0., Lower_HBC=-t.Depth)
     t.set_acoustic_method(acoustic_model)
     # t.run_spectrums()
     # t.run_polar()

@@ -18,7 +18,7 @@ class AcousticSolver(abc.ABC):
     """
 
     @abc.abstractmethod
-    def compute_pressure(self, system, observers):
+    def compute_pressure(self, observers, print_every):
         """
         Abstract base class for all numerical acoustic methods.
         """
@@ -36,6 +36,7 @@ class MethodImages(AcousticSolver):
 
     # ========== CONSTRUCTOR ========== #
     def __init__(self,
+                 system,                            # [-] WindTurbine or WindFarm can be inputed
                  N_images         : int   = 30,     # [-] Number of image levels to compute
                  c_wat            : float = 1500.0, # [m/s] Speed of sound in fluid. Default: water --> 1500
                  rho_wat          : float = 1025.,  # [kg/m^3] Fluid density. Default: water --> 1000
@@ -63,6 +64,19 @@ class MethodImages(AcousticSolver):
         if Lower_HBC is None or Upper_HBC is None or Upper_HBC <= Lower_HBC:
             raise ValueError(f"MethodImages requires Upper_HBC({Upper_HBC}) > Lower_HBC ({Lower_HBC})")
 
+        # If system has atribute 'turbines' is a WindFarm class and qe use it
+        # Else we assume a single WindTurbine and convert it to list
+        if hasattr(system, 'turbines'):
+            self.turbines = system.turbines
+        elif isinstance(system, list):
+            self.turbines = system
+        else:
+            self.turbines = [system]
+
+        self.corrected_F = {}
+        for turbine in self.turbines:
+            self.corrected_F[turbine] = turbine.get_impedance_corrected_force(self.c_wat)
+            
 
     # ========== HELPERS ========== #
     def get_name(self) -> str:
@@ -77,8 +91,7 @@ class MethodImages(AcousticSolver):
         return "Images Method"
     
     # ========== COMPUTE PRESSURE ========== #
-    def compute_pressure(self, 
-                         system                  = None,        # [m] WindTurbine or WindFarm can be inputed
+    def compute_pressure(self,
                          observers  : np.ndarray = None,        # [m] Observers coordinates array to compute pressure at shape(:,3)
                          print_every: int        = 10):         # [-] Print info every specific number of observers
         """
@@ -98,26 +111,21 @@ class MethodImages(AcousticSolver):
         if ndim != 2 or coords != 3:
             raise ValueError("MethodImages.compute_pressure(): observer must have shape(Nobservers, 3)")
 
-        # If system has atribute 'turbines' is a WindFarm class and qe use it
-        # Else we assum a single WindTurbine and convert it to list
-        turbines = getattr(system, 'turbines', [system])
-
         # Initialize pressure matrix
-        first_turbine = turbines[0]
+        first_turbine = self.turbines[0]
         nf = len(first_turbine.Freqs)
         no = len(observers)
         total_pressure = np.zeros((nf, no), dtype=complex)
 
         # Linear superposition
-        for nturb, turbine in enumerate(turbines):
+        for nturb, turbine in enumerate(self.turbines):
 
             p_turb = np.zeros_like(total_pressure)
-            if len(turbines) > 1 : print(f"\nTurbine {nturb+1}/{len(turbines)}: ")
+            if len(self.turbines) > 1 : print(f"\nTurbine {nturb+1}/{len(self.turbines)}: ")
 
-            Local_corrected_F = turbine.get_impedance_corrected_force(self.c_wat)    # Apply impedance correction to source
             for idx, obs in enumerate(observers):
 
-                p_turb[:, idx] = self.dipole_pressure_images(turbine.x, obs, turbine.Freqs, Local_corrected_F)
+                p_turb[:, idx] = self.dipole_pressure_images(turbine.x, obs, turbine.Freqs, self.corrected_F[turbine])
 
                 if (idx+1) % print_every == 0: 
                     print(f"  Progress: {idx + 1}/{no}")

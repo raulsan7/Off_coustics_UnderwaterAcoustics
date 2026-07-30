@@ -696,6 +696,7 @@ def plot_sliceXY(case            : dict  = None,         # [-] Dictionary contai
                  absorption      : bool  = True,         # [-] Whether to apply absorption attenuation
                  filter_under    : float = None,         # [Hz] Lower frequency cutoff (f >= filter_under)
                  filter_over     : float = None,         # [Hz] Upper frequency cutoff (f <= filter_over)
+                 structure       : bool = True,         # [-] Wheter to plot structure on slice
                  figsize         : tuple = (7,7),       # [-] Figure size
                  cmap            : str   = 'inferno'):   # [-] Contour colormap
     """
@@ -706,7 +707,6 @@ def plot_sliceXY(case            : dict  = None,         # [-] Dictionary contai
     fig, ax : matplotlib.figure.Figure, matplotlib.axes.Axes
     """
 
-    print("DRAW STRUCTURE")
     if not case["has_slicexy"]:
         print("plot_sliceXY(): no XY slice data, skipping")
         return None, None
@@ -766,6 +766,16 @@ def plot_sliceXY(case            : dict  = None,         # [-] Dictionary contai
     cbar.set_label(unit_label)
     if abs(x[-1]-x[0]) == abs(y[-1]-y[0]): ax.set_aspect('equal')
 
+    # Structure
+    if structure:
+        try:
+            nodes = case["Structure_nodes"]
+            for member in nodes:
+                ax.plot(member[:,0], member[:,1], '-o', color='black', markersize=2, linewidth=1.0, zorder=10)
+        except Exception as e:
+            print(f"plot_sliceXY() WARNING: Could not plot structure. ({e})")
+
+
     ax.set_xlabel('x [m]')
     ax.set_ylabel('y [m]')
     ax.set_title(f"{tag} - {mode} {title_extra} - Depth = {z_slice:.1f} [m]")
@@ -782,6 +792,7 @@ def plot_sliceXZ(case            : dict  = None,         # [-] Dictionary contai
                  absorption      : bool  = True,         # [-] Whether to apply absorption attenuation
                  filter_under    : float = None,         # [Hz] Lower frequency cutoff (f >= filter_under)
                  filter_over     : float = None,         # [Hz] Upper frequency cutoff (f <= filter_over)
+                 structure       : bool  = True,         # [-] Wheter to plot structure on slice
                  figsize         : tuple = (7,7),        # [-] Figure size
                  cmap            : str   = 'inferno'):   # [-] Contour colormap
     """
@@ -792,8 +803,6 @@ def plot_sliceXZ(case            : dict  = None,         # [-] Dictionary contai
     fig, ax : matplotlib.figure.Figure, matplotlib.axes.Axes
     """
 
-    print("WARNING plot_sliceXZ(): Debug floating and floating shallow NO MATCH TO PREVIOUS DATA")
-    print("DRAW STRUCTURE")
     if not case["has_slicexz"]:
         print("plot_sliceXZ(): no XZ slice data, skipping")
         return None, None
@@ -853,11 +862,19 @@ def plot_sliceXZ(case            : dict  = None,         # [-] Dictionary contai
     cbar.set_label(unit_label)
     if abs(x[-1]-x[0]) == abs(z[-1]-z[0]): ax.set_aspect('equal')
 
+    if structure:
+            try:
+                nodes = case["Structure_nodes"]
+                for member in nodes:
+                    ax.plot(member[:,0], member[:,2], '-o', color='black', markersize=2, linewidth=1.0, zorder=10)
+            except Exception as e:
+                print(f"plot_sliceXY() WARNING: Could not plot structure. ({e})")
+
     ax.set_xlabel('x [m]')
     ax.set_ylabel('z [m]')
     ax.set_title(f"{tag} - {mode} {title_extra} - Y = {y_slice:.1f} [m]")
     ax.set_xlim(x.min(), x.max())
-    ax.set_ylim(z.min(), z.max())
+    ax.set_ylim(z.min(), nodes[:,:,2].max() if structure else z.max())
 
     fig.tight_layout()
 

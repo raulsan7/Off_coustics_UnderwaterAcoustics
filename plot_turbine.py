@@ -14,7 +14,7 @@ def main():
     p.plot_polar(case)
     p.plot_cylinder(case, filter_under=1.0)
     p.plot_distance_decay(case, filter_under=1.0, turbine_data=True)
-    # p.plot_line(case)
+    p.plot_line(case)
     p.plot_sliceXY(case, filter_under=1.0)
     p.plot_sliceXZ(case, filter_under=1.0)
     p.compute_sphere_metrics(case, filter_under=1.0)

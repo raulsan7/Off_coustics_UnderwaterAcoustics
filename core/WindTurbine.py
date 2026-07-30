@@ -369,7 +369,7 @@ class WindTurbine(abc.ABC):
         nf   = len(self.Freqs)
         Nobs = observers.shape[0] 
         p = np.zeros((nf, Nobs), dtype=complex)
-        p = self.acoustic_solver.compute_pressure(self, observers, print_every)
+        p = self.acoustic_solver.compute_pressure(observers, print_every)
         
         # Save data
         self.acoustic_data["P_spectrums"]   = p
@@ -429,7 +429,7 @@ class WindTurbine(abc.ABC):
         Nf = len(self.Freqs)
         print(f"\nComputing polar pressure (r={r} m, center=({cx:.2f},{cy:.2f}) m, z={z} m), observers={n_theta}...")
         p = np.zeros((Nf, n_theta), dtype=complex)
-        p = self.acoustic_solver.compute_pressure(self, observers, print_every)
+        p = self.acoustic_solver.compute_pressure(observers, print_every)
 
         # Save data
         self.acoustic_data["Freqs"]           = self.Freqs
@@ -497,7 +497,7 @@ class WindTurbine(abc.ABC):
         Nobs = len(observers)
         print(f"\nComputing cylindrical pressure (r={r} m, center=({cx:.2f},{cy:.2f}) m, grid={n_theta}x{nz}={Nobs} obs)...")
         p    = np.zeros((Nf, Nobs), dtype=complex)
-        p    = self.acoustic_solver.compute_pressure(self, observers, print_every)       
+        p    = self.acoustic_solver.compute_pressure(observers, print_every)       
         
         # Reshape to (,n_theta, Nobs, )
         observers = observers.reshape((n_theta, nz, 3))
@@ -576,7 +576,7 @@ class WindTurbine(abc.ABC):
         Nf = len(self.Freqs)
         print(f"\nComputing distance decay (points={n_points}, direction={self.WindDir} deg, z={z} m)...")
         p = np.zeros((Nf, n_points), dtype=complex)
-        p = self.acoustic_solver.compute_pressure(self, observers, print_every)
+        p = self.acoustic_solver.compute_pressure(observers, print_every)
 
         # Save data
         self.acoustic_data["Freqs"]           = self.Freqs
@@ -651,7 +651,7 @@ class WindTurbine(abc.ABC):
         Nf = len(self.Freqs)
         print(f"\nComputing line (points={n_points}), p1={p1} m, p2={p2} m)...")
         p = np.zeros((Nf, n_points), dtype=complex)
-        p = self.acoustic_solver.compute_pressure(self, observers, print_every)
+        p = self.acoustic_solver.compute_pressure(observers, print_every)
 
         # Save data
         self.acoustic_data["Freqs"]          = self.Freqs
@@ -733,7 +733,7 @@ class WindTurbine(abc.ABC):
         Nf = len(self.Freqs)
         print(f"\nComputing XY slice (nx={nx}, ny={ny}, z={z} m, center=({cx:.1f}, {cy:.1f}) m)...")
         p = np.zeros((Nf,len(observers)), dtype=complex)
-        p = self.acoustic_solver.compute_pressure(self, observers, print_every)
+        p = self.acoustic_solver.compute_pressure(observers, print_every)
         
         # Reshape
         observers = observers.reshape((nx,ny,3))
@@ -806,7 +806,7 @@ class WindTurbine(abc.ABC):
         Nf = len(self.Freqs)
         print(f"\nComputing XZ slice (nx={nx}, nz={nz}, y={y:.1f} m, z from {zlim[0]:.1f} to {zlim[1]:.1f} m)...")
         p = np.zeros((Nf, len(observers)), dtype=complex)
-        p = self.acoustic_solver.compute_pressure(self, observers, print_every)
+        p = self.acoustic_solver.compute_pressure(observers, print_every)
 
         # Reshape 
         observers = observers.reshape((nx, nz, 3))
@@ -908,7 +908,7 @@ class WindTurbine(abc.ABC):
         original_n_images = self.acoustic_solver.N_images       # Convert to 0 images for radiation
         self.acoustic_solver.N_images = 0
         p = np.zeros((Nf, N_obs), dtype=complex)
-        p = self.acoustic_solver.compute_pressure(self, observers, print_every)
+        p = self.acoustic_solver.compute_pressure(observers, print_every)
         self.acoustic_solver.N_images = original_n_images
 
         # Reshape
@@ -1024,18 +1024,8 @@ class WindTurbine(abc.ABC):
             print_every = polar_print_every
         )
 
-        # ----- 3. Cylinder -----
-        print(f"\n[Step 3/{total_steps}] Cylinder surface …")
-        self.run_cylinder(
-            r           = cylinder_r,
-            n_theta     = cylinder_n_theta,
-            nz          = cylinder_nz,
-            center      = cylinder_center,
-            print_every = cylinder_print_every
-        )
-
-        # ----- 4. Decay -----
-        print(f"\n[Step 4/{total_steps}] Distance decay along wind …")
+        # ----- 3. Decay -----
+        print(f"\n[Step 3/{total_steps}] Distance decay along wind …")
         self.run_decay(
             distance    = decay_distance,
             n_points    = decay_n_points,
@@ -1044,14 +1034,24 @@ class WindTurbine(abc.ABC):
             print_every = decay_print_every
         )
 
-        # ----- 5. Line -----
-        print(f"\n[Step 5/{total_steps}] Line between two points …")
+        # ----- 4. Line -----
+        print(f"\n[Step 4/{total_steps}] Line between two points …")
         self.run_line(
             p1          = line_p1,
             p2          = line_p2,
             n_points    = line_n_points,
             logspace    = line_logspace,
             print_every = line_print_every
+        )
+
+        # ----- 5. Sphere -----
+        print(f"\n[Step 5/{total_steps}] Spherical radiation (free-field) …")
+        self.run_sphere(
+            r           = sphere_r,
+            n_theta     = sphere_n_theta,
+            nz          = sphere_nz,
+            center      = sphere_center,
+            print_every = sphere_print_every
         )
 
         # ----- 6. Slice XY -----
@@ -1077,14 +1077,14 @@ class WindTurbine(abc.ABC):
             print_every = sliceXZ_print_every
         )
 
-        # ----- 8. Sphere -----
-        print(f"\n[Step 8/{total_steps}] Spherical radiation (free-field) …")
-        self.run_sphere(
-            r           = sphere_r,
-            n_theta     = sphere_n_theta,
-            nz          = sphere_nz,
-            center      = sphere_center,
-            print_every = sphere_print_every
+        # ----- 8. Cylinder -----
+        print(f"\n[Step 8/{total_steps}] Cylinder surface …")
+        self.run_cylinder(
+            r           = cylinder_r,
+            n_theta     = cylinder_n_theta,
+            nz          = cylinder_nz,
+            center      = cylinder_center,
+            print_every = cylinder_print_every
         )
 
         print(f"\n{'='*50}")
