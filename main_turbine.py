@@ -30,24 +30,24 @@ from core.TurbineTypes import DTU10MWFloating, DTU10MWMonopile, SAITEC2MWFloatin
 
 def main() -> None:
 
-    t = DTU10MWMonopile(
-        rootname   = "DTU_DeltaWind_mn_ws11.4",
-        save_name  = "plot_mn_SD30",
+    # t = DTU10MWMonopile(
+    #     rootname   = "DTU_DeltaWind_mn_ws11.4",
+    #     save_name  = "plot_mn_SD30",
+    #     WindSpeed  = 11.4,
+    #     Depth      = 30.0,
+    #     Nmembers   = 8,
+    #     Nnodes     = 5,
+    # )
+
+    t = DTU10MWFloating(
+        rootname   = "DTU_DeltaWind_fl_ws11.4",
+        save_name  = "plot_fl_SD30",
         WindSpeed  = 11.4,
-        Depth      = 30.0,
-        Nmembers   = 8,
-        Nnodes     = 5,
+        Depth      = 350.0,
+        Nmembers   = 9,
+        Nnodes     = 9,
         save_dir   = "test"
     )
-
-    # t = DTU10MWFloating(
-    #     rootname   = "DTU_DeltaWind_fl_ws11.4",
-    #     save_name  = "plot_fl_SD30",
-    #     WindSpeed  = 11.4,
-    #     Depth      = 350.0,
-    #     Nmembers   = 9,
-    #     Nnodes     = 9,
-    # )
 
     # t = DTU10MWFloating(
     #     rootname   = "DTU_DeltaWind_fl_ws11.4",
@@ -56,6 +56,7 @@ def main() -> None:
     #     Depth      = 30.0,
     #     Nmembers   = 9,
     #     Nnodes     = 9,
+    #     save_dir   = "test"
     # )
 
     # t = SAITEC2MWFloating(
@@ -72,15 +73,15 @@ def main() -> None:
 
     acoustic_model = MethodImages(system=t, N_images=30, Upper_HBC=0., Lower_HBC=-t.Depth)
     t.set_acoustic_method(acoustic_model)
-    # t.run_spectrums()
-    # t.run_polar()
-    # t.run_cylinder()
-    # t.run_decay()
+    # t.run_spectrums(z_obs=-15.0)
+    # t.run_polar(z=-15.0)
+    # t.run_decay(z=-15.0)
     # t.run_line()
-    # t.run_sliceXY()
-    # t.run_sliceXZ()
     # t.run_sphere()
-    t.run_all()
+    # t.run_sliceXY(z=-15.0)
+    # t.run_sliceXZ()
+    # t.run_cylinder()
+    # t.run_all()
 
     
 
