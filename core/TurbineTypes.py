@@ -126,7 +126,7 @@ class DTU10MWMonopile(WindTurbine):
         A, freqs = compute_rfft(self.acc, nt, dt, skipf=skipf, remove_zero=True)
         self.Freqs = freqs
         self.F     = - A * mass_effective[np.newaxis, :, np.newaxis]
-        del freqs, mass_effective, A, self.acc
+        del freqs, mass_effective, A, self.acc, self.Time
 
         # ---------- Filter Frequencies ---------- #
         if filter_freqs:
@@ -345,9 +345,6 @@ class DTU10MWFloating(WindTurbine):
         nf                   = len(self.Freqs)
         A                    = self.acc.reshape(nf, Nm, Nn, 3)
 
-        # Free up memory
-        self.acc =  None
-
         # ---------- Compute mass properties ---------- #
         # Harcoded to DTU10MW DeltaWnd platform
         (mass_col, added_mass_col, mass_pon, added_mass_pon,
@@ -382,7 +379,7 @@ class DTU10MWFloating(WindTurbine):
             self.F     = self.F[mask_freqs_to_use,:,:,:]
 
         nf         = len(self.Freqs)
-        self.Time  = None
+        self.Time, self.acc = None,  None
 
         # ---------- Remove duplicate nodes and dry nodes ---------- #
         keep = np.ones((Nm, Nn), dtype=bool)

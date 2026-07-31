@@ -8,10 +8,9 @@ Institution: Universidad Politecnica de Madrid - ETSIAE
 Date: 07/2026 
 """
 
+import gc
 import abc
-from tracemalloc import start
 import numpy as np
-from scipy import cluster
 
 
 class AcousticSolver(abc.ABC):
@@ -351,6 +350,7 @@ class MethodImages(AcousticSolver):
 
         # Project force across propagation direction shape(Nfeqs, Nnodes_total)
         F_dor_r = np.einsum('fjd, ojd -> fod', force, r_vec) / r[np.newaxis, :, :]
+        del r_vec
 
         # Dipolar term from Green shape(Nfreqs, Nchunk, Nnodes_total)
         term1 = -1j * k[:, np.newaxis, np.newaxis] + 1./r[np.newaxis, :, :]

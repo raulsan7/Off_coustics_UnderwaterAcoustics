@@ -10,6 +10,7 @@ Date: 07/2026
 """
 
 import os
+import gc
 import abc
 import numpy as np
 from pathlib import Path
@@ -383,6 +384,7 @@ class WindTurbine(abc.ABC):
         self.save_acoustics()
         print(f"\n --> Spectrum data saved at {self._save_path}")
         
+        self.acoustic_data.clear(); gc.collect()
 
         return self
 
@@ -448,7 +450,8 @@ class WindTurbine(abc.ABC):
 
         self.save_acoustics()
         print(f"\n --> Polar data saved at {self._save_path}")
-        
+
+        self.acoustic_data.clear(); gc.collect()
 
         return self
 
@@ -529,6 +532,7 @@ class WindTurbine(abc.ABC):
         self.save_acoustics()
         print(f"\nCylinder data saved at {self._save_path}")
         
+        self.acoustic_data.clear(); gc.collect()
 
         return self
 
@@ -599,7 +603,8 @@ class WindTurbine(abc.ABC):
 
         self.save_acoustics()
         print(f"\nDecay data saved at {self._save_path}")
-        
+
+        self.acoustic_data.clear(); gc.collect()
 
         return self
 
@@ -677,7 +682,8 @@ class WindTurbine(abc.ABC):
 
         self.save_acoustics()
         print(f"\nLine data saved at {self._save_path}")
-        
+
+        self.acoustic_data.clear(); gc.collect()
 
         return self
 
@@ -766,7 +772,8 @@ class WindTurbine(abc.ABC):
 
         self.save_acoustics()
         print(f"\nSlice xy data saved at {self._save_path}")
-        
+
+        self.acoustic_data.clear(); gc.collect()
 
         return self
 
@@ -840,6 +847,8 @@ class WindTurbine(abc.ABC):
 
         self.save_acoustics()
         print(f"\nSlice XZ data saved at {self._save_path}")
+
+        self.acoustic_data.clear(); gc.collect()
 
         return self    
 
@@ -946,7 +955,8 @@ class WindTurbine(abc.ABC):
 
         self.save_acoustics()
         print(f"Sphere data saved at {self._save_path}")
-        
+
+        self.acoustic_data.clear(); gc.collect()
 
         return self
 
