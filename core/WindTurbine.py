@@ -36,19 +36,19 @@ class WindTurbine(abc.ABC):
 
     # ========== CONSTRUCTOR ========== #
     def __init__(self,
-                 debug     : bool = False,                              # [-] Using debug mode will print aditional data
-                 rootname  : str = None,                                # [-] Name without extensions of the OpenFAST output files
-                 output_dir: str = "./OP_output/",                      # [-] OpenFAST output directory   
-                 save_dir  : str = "./turbine_acoustic_data/",          # [-] Directory to save acoustic results
-                 save_name : str = None,                                # [-] Complete name of the acoustic file to save (overrides save_label)
-                 WindSpeed : float = None,                              # [m/s] Wind Speed in norm
-                 WindDir   : float = 0.0,                               # [deg] Wind direction 0 deg points to +x axis (anticlockwise from +x)
-                 Depth     : float = None,                              # [m] Water depth
-                 AxisPos   : np.ndarray = np.zeros(2, dtype=float),     # [m] Position of the turbine axis in xy plane
+                 debug     : bool       = False,                        # [-] Using debug mode will print aditional data
+                 rootname  : str        = None,                         # [-] Name without extensions of the OpenFAST output files
+                 output_dir: str        = "./OP_output/",               # [-] OpenFAST output directory   
+                 save_dir  : str        = "./turbine_acoustic_data/",   # [-] Directory to save acoustic results
+                 save_name : str        = None,                         # [-] Complete name of the acoustic file to save (overrides save_label)
+                 WindSpeed : float      = None,                         # [m/s] Wind Speed in norm
+                 WindDir   : float      = 0.0,                          # [deg] Wind direction 0 deg points to +x axis (anticlockwise from +x)
+                 Depth     : float      = None,                         # [m] Water depth
+                 AxisPos   : np.ndarray = None,                         # [m] Position of the turbine axis in xy plane
                  BariPos   : np.ndarray = None,                         # [m] Position of the turbine baricenter in xy plane
-                 Binary    : bool = True,                               # [-] Whether the OpenFAST output files are in binary format (.outb) or text format (.out)
-                 Nmembers  : int = 0,                                   # [-] Number of structural members in the OpenFAST model
-                 Nnodes    : int = 0,):                                 # [-] Number of structural nodes in the OpenFAST model
+                 Binary    : bool       = True,                         # [-] Whether the OpenFAST output files are in binary format (.outb) or text format (.out)
+                 Nmembers  : int        = 0,                            # [-] Number of structural members in the OpenFAST model
+                 Nnodes    : int        = 0,):                          # [-] Number of structural nodes in the OpenFAST model
         """
         Initializes physical and simulation configuration parameters.
 
@@ -74,7 +74,7 @@ class WindTurbine(abc.ABC):
         self.WindSpeed  = WindSpeed
         self.WindDir    = WindDir
         self.Depth      = Depth
-        self.AxisPos    = AxisPos
+        self.AxisPos    = np.zeros(2, dtype=float) if AxisPos is None else np.asarray(AxisPos, dtype=float)
         self.BariPos    = BariPos
         self.Nmembers   = Nmembers
         self.Nnodes     = Nnodes
@@ -537,7 +537,7 @@ class WindTurbine(abc.ABC):
         return self
 
     def run_decay(self,
-                  distance   : np.ndarray = [10., 500.],    # [m] Minimum an maximum distance from turbine in x-direction
+                  distance   : np.ndarray = None,           # [m] Minimum an maximum distance from turbine in x-direction
                   n_points   : int        = 200,            # [-] Number of points in the line
                   z          : float      = None,           # [m] Depth at which line is located
                   logspace   : bool       = True,           # [-] Wheter spacing is logarithmic or linear
@@ -565,7 +565,7 @@ class WindTurbine(abc.ABC):
 
         # Check defaults
         if z is None: z = -self.Depth/2.0
-        
+        distance = np.asarray([10., 500.]) if distance is None else np.asarray(distance)
         # Wind direction
         WindDir_rad = np.deg2rad(self.WindDir)
         wind_unit   = np.array([np.cos(WindDir_rad), np.sin(WindDir_rad)])

@@ -19,7 +19,7 @@ class AcousticSolver(abc.ABC):
     """
 
     @abc.abstractmethod
-    def compute_pressure(self, observers, print_every):
+    def compute_pressure(self, observers, block_size):
         """
         Abstract base class for all numerical acoustic methods.
         """
@@ -48,8 +48,8 @@ class MethodImages(AcousticSolver):
                  attenuation_upper: float = 1.,     # [-] Attenuation coefficient for upper boundary reflections
                  attenuation_lower: float = 0.5,    # [-] Attenuation coefficient for lower boundary reflections
                  eps              : float = 1e-12,  # [-] Regularization term to avoid division by zero in distances
-                 p_ref            : float = 1e-6,
-                 cluster          : bool = False):
+                 p_ref            : float = 1e-6,   # [Pa] Reference pressure
+                 cluster          : bool  = False): # [-] Wheter the simulation is ran in a cluster or not (mor RAM if true)
 
         # Parse input
         self.N_images  = N_images
@@ -159,13 +159,13 @@ class MethodImages(AcousticSolver):
         """
         Compute acoustic pressure at observer positions for a given source system.
 
-        This method must be implemented by subclasses.
-
         Returns
         -------
         np.ndarray, shape (n_freq, n_obs)
             Complex pressure at each frequency and observer.
         """
+
+        if observers is None: raise ValueError("MethodImages.compute_pressure(): observers cannot be None")
 
         ndim = observers.ndim
         coords = observers.shape[-1]
@@ -181,29 +181,39 @@ class MethodImages(AcousticSolver):
         if not self.cluster: block_size = 1
 
         # Linear superposition
-        for nturb, turbine in enumerate(self.turbines):
+        if self.cluster:
+            for nturb, turbine in enumerate(self.turbines):
 
-            if len(self.turbines) > 1 : print(f"\nTurbine {nturb+1}/{len(self.turbines)}: ")
+                if len(self.turbines) > 1: print(f"\nTurbine {nturb+1}/{len(self.turbines)}: ")
 
-            # Extract precomputed geometry
-            nodes_pos, force, BC_all = self.image_systems[turbine]
-            total_blocks = int(np.ceil(no / block_size))
+                # Extract precomputed geometry
+                nodes_pos, force, BC_all = self.image_systems[turbine]
+                total_blocks = int(np.ceil(no / block_size))
 
-            for start_idx in range(0, no, block_size):
-                end_idx = min(start_idx + block_size, no)
-                obs_block = observers[start_idx:end_idx]
+                for start_idx in range(0, no, block_size):
+                    end_idx = min(start_idx + block_size, no)
+                    obs_block = observers[start_idx:end_idx]
 
-                # Compute pressure for the entire block at once
-                p_block = self.dipole_pressure_images(obs_block, turbine.Freqs, nodes_pos, force, BC_all)
-                total_pressure[:, start_idx:end_idx] += p_block
+                    # Compute pressure for the entire block at once
+                    p_block = self.dipole_pressure_images(obs_block, turbine.Freqs, nodes_pos, force, BC_all)
+                    total_pressure[:, start_idx:end_idx] += p_block
 
-                # Print progress per block
-                if self.cluster:
                     current_block = (start_idx // block_size) + 1
                     print(f"  Progress: Block {current_block}/{total_blocks} ({end_idx}/{no} observers)")
-                else:
-                    if end_idx % 100 == 0 or end_idx == no:
-                        print(f"  Progress: ({end_idx}/{no} observers)")
+        else:
+            for nturb, turbine in enumerate(self.turbines):
+
+                if len(self.turbines) > 1: print(f"\nTurbine {nturb+1}/{len(self.turbines)}: ")
+
+                # Extract precomputed geometry
+                nodes_pos, force, BC_all = self.image_systems[turbine]
+
+                for idx, obs in enumerate(observers):
+                    p_turb =self.dipole_pressure_images(obs, turbine.Freqs, nodes_pos, force, BC_all)
+
+                    if (idx+1) % 100 == 0: print(f"  Progress: {idx + 1}/{no}")
+
+                    total_pressure[:, idx] += p_turb
 
         return total_pressure
 
@@ -215,28 +225,6 @@ class MethodImages(AcousticSolver):
         """
         Apply the method of images for dipole forces with horizontal planar
         boundary conditions (reflections only along the z-direction).
-
-        Parameters
-        ----------
-        zi : array_like, shape (Nnodes,)
-            z-coordinates of the real nodes.
-
-        Force : ndarray, shape (Nfreqs, 3, Nnodes)
-            Frequency-domain force vectors applied at the real nodes.
-
-        Upper_BC, Lower_BC : int
-            Boundary condition type at the upper and lower planes.
-            +1 : Neumann-type (dF/dz = 0)
-            -1 : Dirichlet-type (F = 0)
-
-        Upper_HBC, Lower_HBC : float
-            z-coordinates of the upper and lower boundary planes.
-
-        N : int, optional
-            Number of image layers. Each real node generates 2*N image nodes.
-
-        attenuation : float, optional
-            Attenuation factor applied at each reflection.
 
         Returns
         -------

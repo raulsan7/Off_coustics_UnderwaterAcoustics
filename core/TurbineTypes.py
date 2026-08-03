@@ -61,10 +61,9 @@ class DTU10MWMonopile(WindTurbine):
         self.wet_area = 848.12   # [m^2] Wetted area
 
         # Hardcode where data should be located
-        self._path_rpm = Path.cwd().resolve() / "wind_speed_curves_DTU_10MW" / "rpm_ws.csv"
+        self._path_rpm = Path(__file__).parent.parent / "wind_speed_curves_DTU_10MW" / "rpm_ws.csv"
 
-        if not self._path_rpm.exists():
-            raise FileNotFoundError(f"RPM curve file not found: {self._path_rpm}")
+        if not self._path_rpm.exists(): raise FileNotFoundError(f"RPM curve file not found: {self._path_rpm}")
         
         self.case_type = "Monopile"
 
@@ -288,7 +287,7 @@ class DTU10MWFloating(WindTurbine):
         self.pon_members = [[6],[7],[8]]        # [-] Pontoon members ID lists
 
         # Hardcode where data should be located
-        self._path_rpm = Path.cwd().resolve() / "wind_speed_curves_DTU_10MW" / "rpm_ws.csv"
+        self._path_rpm = Path(__file__).parent.parent / "wind_speed_curves_DTU_10MW" / "rpm_ws.csv"
 
         if not self._path_rpm.exists():
             raise FileNotFoundError(f"RPM curve file not found: {self._path_rpm}")
@@ -643,7 +642,7 @@ class SAITEC2MWFloating(WindTurbine):
         print("SAITEC2MWFloating.__init__(): CHECK IF BARIPOS IS WELL COMPUTED, SHOULD BE (-8.9586, 0)")
 
         # Hardcode where data should be located
-        self._path_rpm = Path.cwd().resolve() / "wind_speed_curves_SAITEC_2MW" / "rpm_ws.csv"
+        self._path_rpm = Path(__file__).parent.parent / "wind_speed_curves_SAITEC_2MW" / "rpm_ws.csv"
 
         if not self._path_rpm.exists():
             raise FileNotFoundError(f"RPM curve file not found: {self._path_rpm}")
