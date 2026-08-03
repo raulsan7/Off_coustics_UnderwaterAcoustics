@@ -209,6 +209,28 @@ class WindTurbine(abc.ABC):
 
         return self
 
+
+    # ========== HELPERS ========== #
+    def check_observers_distances(self,
+                                  observers: np.ndarray,       # [m] Observers coordinates array shape(Nobs,3)
+                                  min_distance: float = 1.0):  # [m] Minimum allowed distance
+        """
+        Checks if observers are at least min_distance away from any node of the turbine.
+        """
+        
+        # Como ya estamos en la clase WindTurbine, los nodos son simplemente self.x
+        all_nodes = self.x
+
+        for i, obs in enumerate(observers):
+            distances = np.linalg.norm(all_nodes - obs, axis=1)
+            
+            if np.any(distances < min_distance):
+                raise ValueError(
+                    f"Observer {i} at {obs} is too close to a turbine node "
+                    f"(min distance: {min_distance} m)."
+                )
+
+        return self
     
     # ========== COMPUTE SOURCE TERM ========== #
     @abc.abstractmethod
@@ -219,8 +241,8 @@ class WindTurbine(abc.ABC):
         """
         Compute frequency-domain dipole forces from acceleration data.
 
-        Must be implemented by subclasses. This method updates `self.Freqs`, `self.F`,
-        and `self.x` (wet nodes) in place.
+        Must be implemented by subclasses. This method updates 'self.Freqs', 'self.F',
+        and 'self.x' (wet nodes) in place.
 
         Returns
         -------
@@ -260,7 +282,8 @@ class WindTurbine(abc.ABC):
 
     
     # ========== OUTPUT MANAGEMENT ========== #
-    def save_parameters(self, parameters: dict = None):   # [-] Dictionary with relevant simulation parameters 
+    def save_parameters(self,
+                        parameters: dict = None):   # [-] Dictionary with relevant simulation parameters 
         """
         Saves the parameter dictionary provided incrementally in self._save_path.
         """
@@ -339,16 +362,16 @@ class WindTurbine(abc.ABC):
         """
         Compute pressure frequency spectra at specific observer coordinates.
 
-        Uses the current `acoustic_solver` to compute complex pressure at each frequency.
-        If `observers` is not provided, defaults to three points (x=10,250,500 m)
+        Uses the current 'acoustic_solver' to compute complex pressure at each frequency.
+        If 'observers' is not provided, defaults to three points (x=10,250,500 m)
         at z = -Depth/2.
 
-        Results are stored in `self.acoustic_data` under:
+        Results are stored in 'self.acoustic_data' under:
             - 'P_spectrums' : complex pressure (n_freq, n_obs)
             - 'Obs_spectrums': observer coordinates (n_obs, 3)
             - 'Freqs'        : frequency array (n_freq,)
 
-        Data are automatically saved to the `.npz` file specified by `_save_path`.
+        Data are automatically saved to the '.npz' file specified by '_save_path'.
 
         Returns
         -------
@@ -367,6 +390,7 @@ class WindTurbine(abc.ABC):
             else:
                 observers[:,2] = z_obs
             observers[:,0] = [10., 250., 500.]
+        self.check_observers_distances(observers)
 
         # Compute pressure
         nf   = len(self.Freqs)
@@ -397,10 +421,10 @@ class WindTurbine(abc.ABC):
         """
         Compute pressure on a circular horizontal ring at fixed depth.
 
-        Uses the current `acoustic_solver`. The ring is defined by radius `r`, depth `z`,
-        and centre `center`. Pressure is computed at `n_theta` evenly spaced azimuths.
+        Uses the current 'acoustic_solver'. The ring is defined by radius 'r', depth 'z',
+        and centre 'center'. Pressure is computed at 'n_theta' evenly spaced azimuths.
 
-        Stored in `self.acoustic_data`:
+        Stored in 'self.acoustic_data':
             - 'P_polar'         : complex pressure (n_freq, n_theta)
             - 'R_polar'         : radius (scalar)
             - 'Z_polar'         : depth (scalar)
@@ -408,12 +432,14 @@ class WindTurbine(abc.ABC):
             - 'Obs_polar'       : observer coordinates (n_theta, 3)
             - 'Center_polar'    : centre coordinates (2,)
 
-        Data are saved to `.npz`.
+        Data are saved to '.npz'.
 
         Returns
         -------
         self
         """
+
+        self.check_acoustic_solver()
 
         # Check defaults
         if center is not None and len(center) != 2: raise ValueError("WindTurbine.run_polar(): center shape should be (2,)")
@@ -430,6 +456,7 @@ class WindTurbine(abc.ABC):
             r * np.cos(theta_rad) + cx,
             r * np.sin(theta_rad) + cy,
             np.full(n_theta, z)])
+        self.check_observers_distances(observers)
 
         # Compute pressure
         Nf = len(self.Freqs)
@@ -464,11 +491,11 @@ class WindTurbine(abc.ABC):
         """
         Compute pressure field on the lateral surface of a vertical cylinder.
 
-        Uses the current `acoustic_solver`. The cylinder has radius `r`, vertical axis through
-        `center`, and extends from seabed (z=-Depth) to surface (z=0).
-        The grid is `n_theta` azimuthal divisions and `nz` vertical divisions.
+        Uses the current 'acoustic_solver'. The cylinder has radius 'r', vertical axis through
+        'center', and extends from seabed (z=-Depth) to surface (z=0).
+        The grid is 'n_theta' azimuthal divisions and 'nz' vertical divisions.
 
-        Stored in `self.acoustic_data`:
+        Stored in 'self.acoustic_data':
             - 'P_cylinder'         : complex pressure (n_freq, n_theta, nz)
             - 'R_cylinder'         : radius (scalar)
             - 'Z_cylinder'         : vertical coordinates (nz,)
@@ -476,15 +503,17 @@ class WindTurbine(abc.ABC):
             - 'Obs_cylinder'       : observer coordinates (n_theta, nz, 3)
             - 'Center_cylinder'    : centre coordinates (2,)
 
-        Data are saved to `.npz`.
+        Data are saved to '.npz'.
 
         Returns
         -------
         self
         """
 
+        self.check_acoustic_solver()
+
         # Check defaults
-        if center is not None and len(center) != 2: raise ValueError("WindTurbine.run_polar(): center shape should be (2,)")
+        if center is not None and len(center) != 2: raise ValueError("WindTurbine.run_cylinder(): center shape should be (2,)")
         if center is None: 
             cx, cy = self.BariPos[0], self.BariPos[1]
         else:
@@ -500,6 +529,7 @@ class WindTurbine(abc.ABC):
             r * np.cos(THETA.ravel()) + cx,
             r * np.sin(THETA.ravel()) + cy,
             Z.ravel(),], axis=1)
+        self.check_observers_distances(observers)
         
         # Compute pressure
         Nf   = len(self.Freqs)
@@ -545,23 +575,25 @@ class WindTurbine(abc.ABC):
         """
         Compute pressure decay along the wind direction.
 
-        Uses the current `acoustic_solver`. Observers are placed along a line starting at
-        `distance[0]` and ending at `distance[1]` m from the turbine axis, in the direction
-        of the wind (`WindDir`). The line lies at depth `z` (`-Depth/2` if not given).
+        Uses the current 'acoustic_solver'. Observers are placed along a line starting at
+        'distance[0]' and ending at 'distance[1]' m from the turbine axis, in the direction
+        of the wind ('WindDir'). The line lies at depth 'z' ('-Depth/2' if not given).
 
-        Stored in `self.acoustic_data`:
+        Stored in 'self.acoustic_data':
             - 'P_decay'         : complex pressure (n_freq, n_points)
             - 'Distances_decay' : actual distances from axis (n_points,)
             - 'Z_decay'         : depth (scalar)
             - 'Obs_decay'       : observer coordinates (n_points, 3)
             - 'Logspace_decay'  : bool indicating spacing type
 
-        Data are saved to `.npz`.
+        Data are saved to '.npz'.
 
         Returns
         -------
         self
         """
+
+        self.check_acoustic_solver()
 
         # Check defaults
         if z is None: z = -self.Depth/2.0
@@ -581,6 +613,7 @@ class WindTurbine(abc.ABC):
         for i, d in enumerate(distances):
             xy = self.AxisPos + d * wind_unit
             observers[i, :] = [xy[0], xy[1], z]
+        self.check_observers_distances(observers)
 
         if np.isnan(observers).any(): raise ValueError("WindTurbine.run_decay(): distance must be grater than 0 to avoid singularities.")
 
@@ -617,22 +650,24 @@ class WindTurbine(abc.ABC):
         """
         Compute pressure along a straight line between two user-defined points.
 
-        Uses the current `acoustic_solver`. The line is divided into `n_points` equally
-        spaced (or logarithmically spaced if `logspace=True`) points between `p1` and `p2`.
+        Uses the current 'acoustic_solver'. The line is divided into 'n_points' equally
+        spaced (or logarithmically spaced if 'logspace=True') points between 'p1' and 'p2'.
 
-        Stored in `self.acoustic_data`:
+        Stored in 'self.acoustic_data':
             - 'P_line'           : complex pressure (n_freq, n_points)
             - 'Distances_line'   : distances from p1 along the line (n_points,)
             - 'P1_line', 'P2_line': endpoints (3,)
             - 'Obs_line'         : observer coordinates (n_points, 3)
             - 'Logspace_line'    : bool
 
-        Data are saved to `.npz`.
+        Data are saved to '.npz'.
 
         Returns
         -------
         self
         """
+
+        self.check_acoustic_solver()
 
         # Check defaults
         if p1 is None: p1 = np.asarray([100.0, 0.0,         0.0])
@@ -659,6 +694,7 @@ class WindTurbine(abc.ABC):
         for i, d in enumerate(distances):
             pt = p1 + (d/distance)*dir_vec
             observers[i,:] = pt
+        self.check_observers_distances(observers)
 
         if np.isnan(observers).any(): raise ValueError("WindTurbine.run_line(): Nan within observers array are found")
 
@@ -696,12 +732,12 @@ class WindTurbine(abc.ABC):
                     center     : np.ndarray = None,             # [m] Coordinates of the center of the plane
                     block_size : int        = 128):             # [-] Print info every specific number of observers
         """
-        Compute pressure field on a horizontal plane at constant depth `z`.
+        Compute pressure field on a horizontal plane at constant depth 'z'.
 
-        Uses the current `acoustic_solver`. The plane is defined by `z`, `xlim`, `ylim`,
-        and discretised with `nx` by `ny` points. Centre is automatically adjusted.
+        Uses the current 'acoustic_solver'. The plane is defined by 'z', 'xlim', 'ylim',
+        and discretised with 'nx' by 'ny' points. Centre is automatically adjusted.
 
-        Stored in `self.acoustic_data`:
+        Stored in 'self.acoustic_data':
             - 'P_slicexy'   : complex pressure (n_freq, nx, ny)
             - 'X_slicexy'   : x coordinates (nx,)
             - 'Y_slicexy'   : y coordinates (ny,)
@@ -709,12 +745,14 @@ class WindTurbine(abc.ABC):
             - 'Obs_slicexy' : observer coordinates (nx, ny, 3)
             - 'Center'      : centre (2,)
 
-        Data are saved to `.npz`.
+        Data are saved to '.npz'.
 
         Returns
         -------
         self
         """
+
+        self.check_acoustic_solver()
 
         # Check defaults
         if z is None: z = -self.Depth/2.0
@@ -746,6 +784,7 @@ class WindTurbine(abc.ABC):
 
         XX , YY = np.meshgrid(xs, ys)
         observers = np.column_stack((XX.ravel(), YY.ravel(), np.full(nx*ny, z)))
+        self.check_observers_distances(observers, min_distance=0.1)
         
         # Compute pressure
         Nf = len(self.Freqs)
@@ -787,22 +826,25 @@ class WindTurbine(abc.ABC):
         """
         Compute pressure field on a vertical plane at constant y-coordinate.
 
-        Uses the current `acoustic_solver`. The plane is defined by `y`, `xlim`, `zlim`,
-        and discretised with `nx` by `nz` points.
+        Uses the current 'acoustic_solver'. The plane is defined by 'y', 'xlim', 'zlim',
+        and discretised with 'nx' by 'nz' points.
 
-        Stored in `self.acoustic_data`:
+        Stored in 'self.acoustic_data':
             - 'P_slicexz'   : complex pressure (n_freq, nx, nz)
             - 'X_slicexz'   : x coordinates (nx,)
             - 'Z_slicexz'   : z coordinates (nz,)
             - 'Y_slicexz'   : y constant (scalar)
             - 'Obs_slicexz' : observer coordinates (nx, nz, 3)
 
-        Data are saved to `.npz`.
+        Data are saved to '.npz'.
 
         Returns
         -------
         self
         """
+
+
+        self.check_acoustic_solver()
 
         # Check defaults
         if y is None: y = self.AxisPos[1]
@@ -822,6 +864,8 @@ class WindTurbine(abc.ABC):
                                     XX.ravel(),
                                     np.full(nx * nz, y),
                                     ZZ.ravel()))
+        
+        self.check_observers_distances(observers, min_distance=0.1)
 
         # Compute pressure
         Nf = len(self.Freqs)
@@ -861,13 +905,13 @@ class WindTurbine(abc.ABC):
         """
         Compute pressure on a spherical surface in free-field (no reflections).
 
-        Uses the current `acoustic_solver` but temporarily sets `N_images=0` to disable
-        boundary images. The sphere is centred at `center` and radius `r`; if `r` is too
+        Uses the current 'acoustic_solver' but temporarily sets 'N_images=0' to disable
+        boundary images. The sphere is centred at 'center' and radius 'r'; if 'r' is too
         small to enclose all structural nodes, it is increased automatically.
 
-        The surface is discretised as `n_theta` azimuthal and `nz` vertical layers.
+        The surface is discretised as 'n_theta' azimuthal and 'nz' vertical layers.
 
-        Stored in `self.acoustic_data`:
+        Stored in 'self.acoustic_data':
             - 'P_sphere'       : complex pressure (n_freq, n_theta, nz)
             - 'Theta_sphere'   : azimuth angles in degrees (n_theta,)
             - 'Z_sphere'       : vertical coordinates (nz,)
@@ -875,12 +919,15 @@ class WindTurbine(abc.ABC):
             - 'Center_sphere'  : centre (3,)
             - 'dA_sphere'      : approximate surface element area (scalar)
 
-        Data are saved to `.npz`.
+        Data are saved to '.npz'.
 
         Returns
         -------
         self
         """
+
+
+        self.check_acoustic_solver()
 
         # Check defaults
         if center is None:
@@ -922,6 +969,7 @@ class WindTurbine(abc.ABC):
             z = np.full_like(theta_centers, zc)
             observers_list.append(np.column_stack([x, y, z]))
         observers = np.concatenate(observers_list, axis=0)      # (n_theta * nz, 3)
+        self.check_observers_distances(observers, min_distance=0.1)
 
         # Comput pressure
         N_obs = observers.shape[0]
@@ -1013,12 +1061,12 @@ class WindTurbine(abc.ABC):
         """
         Run all standard acoustic post-processing steps in sequence.
 
-        This method calls `run_spectrums`, `run_polar`, `run_cylinder`, `run_decay`,
-        `run_line`, `run_sliceXY`, `run_sliceXZ`, and `run_sphere` with the provided
+        This method calls 'run_spectrums', 'run_polar', 'run_cylinder', 'run_decay',
+        'run_line', 'run_sliceXY', 'run_sliceXZ', and 'run_sphere' with the provided
         parameters (each prefixed by the method name). If a parameter is omitted, the
         default of the corresponding method is used.
 
-        All results are stored in `self.acoustic_data` and saved to the `.npz` file.
+        All results are stored in 'self.acoustic_data' and saved to the '.npz' file.
 
         Returns
         -------

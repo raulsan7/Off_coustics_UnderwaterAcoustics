@@ -125,7 +125,6 @@ class DTU10MWMonopile(WindTurbine):
         A, freqs = compute_rfft(self.acc, nt, dt, skipf=skipf, remove_zero=True)
         self.Freqs = freqs
         self.F     = - A * mass_effective[np.newaxis, :, np.newaxis]
-        del freqs, mass_effective, A, self.acc, self.Time
 
         # ---------- Filter Frequencies ---------- #
         if filter_freqs:
@@ -134,6 +133,7 @@ class DTU10MWMonopile(WindTurbine):
             self.Freqs = self.Freqs[mask_freqs_to_use]
             self.F     = self.F[mask_freqs_to_use,:,:]
 
+        del freqs, mass_effective, A, self.acc, self.Time
         # ---------- SUMMARY PRINT ---------- #
         Nfreqs = len(self.Freqs)
         F_memory_mb = self.F.nbytes / 1024. / 1024.
@@ -297,9 +297,9 @@ class DTU10MWFloating(WindTurbine):
 
     # ========== COMPUTE SOURCE TERM ========== #
     def compute_force(self,
-                      filter_freqs: bool = False,   # Wheter to skip non inputed frequencis in OpenFAST
-                      verbose     : bool = True,    # Flag to print more info
-                      skipf       : int = 1):       # Skips frequency data e.g. Freqs[::skipf]
+                      filter_freqs: bool = False,   # [-] Wheter to skip non inputed frequencis in OpenFAST
+                      verbose     : bool = True,    # [-] Flag to print more info
+                      skipf       : int = 1):       # [-] Skips frequency data e.g. Freqs[::skipf]
         """
         Computes the frequency-domain acoustic dipole excitation forces for the floating platform.
 

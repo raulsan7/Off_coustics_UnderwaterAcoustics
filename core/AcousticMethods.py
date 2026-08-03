@@ -211,9 +211,9 @@ class MethodImages(AcousticSolver):
                 for idx, obs in enumerate(observers):
                     p_turb =self.dipole_pressure_images(obs, turbine.Freqs, nodes_pos, force, BC_all)
 
-                    if (idx+1) % 100 == 0: print(f"  Progress: {idx + 1}/{no}")
+                    total_pressure += p_turb
 
-                    total_pressure[:, idx] += p_turb
+                    if (idx+1) % 100 == 0: print(f"  Progress: {idx + 1}/{no}")
 
         return total_pressure
 
@@ -325,6 +325,12 @@ class MethodImages(AcousticSolver):
                                nodes_pos     : np.ndarray = None,   # [m] Coordinates array for all dipole nodes shape(Nnodes_total, 3)
                                force         : np.ndarray = None,   # [N] Force array shape(nfreqs, Nnodes, 3)
                                BC_all        : np.ndarray = None):  # [-] Array with all boundary conditions
+
+        observer_pos = np.asarray(observer_pos, dtype=float)
+        if observer_pos.ndim == 1:
+            observer_pos = observer_pos[np.newaxis, :]
+        elif observer_pos.ndim != 2 or observer_pos.shape[1] != 3:
+            raise ValueError("MethodImages.dipole_pressure_images(): observer_pos must have shape (Nobs, 3) or (3,)")
 
         # Distance vectors from each node to observer shape(Nchunk, 3, Nnodes_total)
         r_vec = observer_pos[:, :, np.newaxis] - nodes_pos[np.newaxis, :, :]
