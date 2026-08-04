@@ -211,7 +211,7 @@ class MethodImages(AcousticSolver):
                 for idx, obs in enumerate(observers):
                     p_turb =self.dipole_pressure_images(obs, turbine.Freqs, nodes_pos, force, BC_all)
 
-                    total_pressure += p_turb
+                    total_pressure[:, idx] += p_turb[:,0]
 
                     if (idx+1) % 100 == 0: print(f"  Progress: {idx + 1}/{no}")
 
