@@ -39,6 +39,7 @@ class AcademicStyle:
             "axes.titlesize": 20,
             "xtick.labelsize": 14,
             "ytick.labelsize": 14,
+            "legend.fontsize":14,
             "figure.titlesize": 20,
             "savefig.dpi": 300,
             "savefig.bbox": 'tight'

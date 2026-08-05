@@ -1,5 +1,3 @@
-from turtle import title
-
 import numpy as np
 import matplotlib.pyplot as plt
 import plotting.plot_utils as pu
@@ -13,7 +11,8 @@ from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 def plot_structure(case   : dict  = None,       # [-] Dictionary containing simulation data
                    mode   : str   = '3D',       # [-] Plot mode for the structure representation
                    WindDir: bool  = True,       # [-] Wheter to plot or not wind direction
-                   figsize: tuple = (8,6)):     # [-] Figure size
+                   figsize: tuple = (8,6),      # [-] Figure size
+                   ax_in  : plt.Axes = None):   # [-] Optional external axes for subplots
     """
     Plots the structure nodes in shape (Nmembers, Nnodes, 3)
 
@@ -43,8 +42,12 @@ def plot_structure(case   : dict  = None,       # [-] Dictionary containing simu
 
     if mode == '3D':
 
-        fig = plt.figure(figsize=figsize)
-        ax  =fig.add_subplot(111, projection='3d')
+        if ax_in is None:
+            fig = plt.figure(figsize=figsize)
+            ax  = fig.add_subplot(111, projection='3d')
+        else:
+            ax = ax_in
+            fig = ax.figure
 
         # Compute extents for drawing planes
         xs = nodes[..., 0].ravel()
@@ -87,7 +90,12 @@ def plot_structure(case   : dict  = None,       # [-] Dictionary containing simu
         ax.set_zlim(-Depth, max_z + max(10, abs(max_z)*0.1))
 
     else:
-        fig, ax = plt.subplots(figsize=figsize)
+        
+        if ax_in is None:
+            fig, ax = plt.subplots(figsize=figsize)
+        else:
+            ax = ax_in
+            fig = ax.figure
 
         if mode == "xy":
             xs = nodes[..., 0].ravel()
@@ -146,7 +154,9 @@ def plot_structure(case   : dict  = None,       # [-] Dictionary containing simu
             ax.set_ylim(zmin - zpad, zmax + zpad)
             ax.legend()
 
-    fig.tight_layout()
+    if ax_in is None:
+        fig.tight_layout()
+        
     return fig, ax
 
 
@@ -158,7 +168,8 @@ def plot_spectrum(case         : dict  = None,      # [-] Dictionary containing 
                   filter_under : float = None,      # [Hz] Minimum frequency threshold
                   filter_over  : float = None,      # [Hz] Maximum frequency threshold
                   do_thresholds: bool  = False,     # [-] Whether to plot regulatory/reference thresholds
-                  figsize      : tuple = (10,5)):   # [-] Figure size
+                  figsize      : tuple = (10,5),    # [-] Figure size
+                  ax_in        : plt.Axes = None):  # [-] Optional external axes for subplots
     """
     Plots the acoustic spectrum.
 
@@ -208,7 +219,12 @@ def plot_spectrum(case         : dict  = None,      # [-] Dictionary containing 
 
 
     # Plot 
-    fig, ax       = plt.subplots(1, 1, figsize=figsize)
+    if ax_in is None:
+        fig, ax = plt.subplots(1, 1, figsize=figsize)
+    else:
+        ax = ax_in
+        fig = ax.figure
+        
     linestyles   = pu.get_line_styles()
     num_observers = spl.shape[1] if spl.ndim> 1 else 1
     if num_observers > len(linestyles): print("plot_spectrum(): too many observers, linestyles will be repeated")
@@ -248,10 +264,12 @@ def plot_spectrum(case         : dict  = None,      # [-] Dictionary containing 
 
     if do_thresholds:
         ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.16), ncol=3, frameon=False)
-        fig.tight_layout(rect=[0, 0.06, 1, 1])
+        if ax_in is None:
+            fig.tight_layout(rect=[0, 0.06, 1, 1])
     else:
         ax.legend()
-        fig.tight_layout()
+        if ax_in is None:
+            fig.tight_layout()
 
     return fig, ax
 
@@ -262,7 +280,8 @@ def plot_polar(case             : dict  = None,        # [-] Dictionary containi
                target_frequency : float = 0.88,        # [Hz] Target frequency for 'SPL' or 'ABS' modes
                absorption       : bool  = True,        # [-] Whether to apply absorption attenuation
                bands            : list  = [10., 100.], # [Hz] Frequency band limits for OASPL
-               figsize          : tuple = (7,7)):      # [-] Figure size
+               figsize          : tuple = (7,7),       # [-] Figure size
+               ax_in            : plt.Axes = None):    # [-] Optional external axes for subplots
     """
     Plots polar directivity diagram.
 
@@ -312,7 +331,12 @@ def plot_polar(case             : dict  = None,        # [-] Dictionary containi
 
 
     # Setup plot
-    fig, ax = plt.subplots(subplot_kw={"projection": "polar"}, figsize=figsize)
+    if ax_in is None:
+        fig, ax = plt.subplots(subplot_kw={"projection": "polar"}, figsize=figsize)
+    else:
+        ax = ax_in
+        fig = ax.figure
+        
     distances = np.full(N_obs, r)
     theta_plot = np.append(theta_rad, theta_rad[0])
 
@@ -364,7 +388,9 @@ def plot_polar(case             : dict  = None,        # [-] Dictionary containi
 
     ax.set_title(f"{tag}")
     ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.12), ncol=3, frameon=False)
-    fig.tight_layout(rect=[0, 0.06, 1, 1])
+    
+    if ax_in is None:
+        fig.tight_layout(rect=[0, 0.06, 1, 1])
 
     return fig, ax
 
@@ -377,7 +403,8 @@ def plot_cylinder(case            : dict = None,        # [-] Dictionary contain
                   filter_under    : float = None,       # [Hz] Lower frequency cutoff (f >= filter_under)
                   filter_over     : float = None,       # [Hz] Upper frequency cutoff (f <= filter_over)
                   figsize         : tuple = (12,5),     # [-] Figure size
-                  cmap            : str = 'inferno'):   # [-] COntour colormap
+                  cmap            : str = 'inferno',    # [-] Contour colormap
+                  ax_in           : plt.Axes = None):   # [-] Optional external axes for subplots
     """
     Plots 2D unwrapped cylindrical surface maps for acoustic magnitudes (OASPL, SPL, SWL, etc.).
 
@@ -435,7 +462,12 @@ def plot_cylinder(case            : dict = None,        # [-] Dictionary contain
     nf = len(Freqs)
 
     mode = mode.upper()
-    fig, ax = plt.subplots(figsize=figsize)
+    
+    if ax_in is None:
+        fig, ax = plt.subplots(figsize=figsize)
+    else:
+        ax = ax_in
+        fig = ax.figure
 
     title_extra = ""
     # Select mode
@@ -473,7 +505,9 @@ def plot_cylinder(case            : dict = None,        # [-] Dictionary contain
     ax.set_ylim(z.min(), z.max())
     ax.set_xticks(np.arange(0, 361, 45))
 
-    fig.tight_layout()
+    if ax_in is None:
+        fig.tight_layout()
+        
     return fig, ax
 
 
@@ -485,7 +519,8 @@ def plot_distance_decay(case            : dict  = None,         # [-] Dictionary
                         filter_under    : float = None,         # [Hz] Lower frequency cutoff (f >= filter_under)
                         filter_over     : float = None,         # [Hz] Upper frequency cutoff (f <= filter_over)
                         turbine_data    : bool  = False,        # [-] Wheter to plot additional turbine data from GE 2025 
-                        figsize         : tuple = (10,5)):      # [-] Figure size
+                        figsize         : tuple = (10,5),       # [-] Figure size
+                        ax_in           : plt.Axes = None):     # [-] Optional external axes for subplots
     """
     Plots acoustic magnitude decay over distance (1D line plot).
 
@@ -526,7 +561,13 @@ def plot_distance_decay(case            : dict  = None,         # [-] Dictionary
     NFreqs = len(Freqs)
 
     mode = mode.upper()
-    fig, ax = plt.subplots(figsize=figsize)
+    
+    if ax_in is None:
+        fig, ax = plt.subplots(figsize=figsize)
+    else:
+        ax = ax_in
+        fig = ax.figure
+        
     title_extra = ""
     color = pu.get_case_color(case)
 
@@ -551,7 +592,7 @@ def plot_distance_decay(case            : dict  = None,         # [-] Dictionary
             ref_vals_1 = vals[0] - 10 * np.log10(np.maximum(r, np.finfo(float).eps) / r[0])
             ref_vals_2 = vals[0] - 20 * np.log10(np.maximum(r, np.finfo(float).eps) / r[0])
             ax.semilogx(r, ref_vals_1, '--', color=color, alpha=0.4, lw=1.0, label=r"$1/r$")
-            ax.semilogx(r, ref_vals_2, '--', color=color, alpha=0.4, lw=1.0, label=r"$1/r^2$")
+            ax.semilogx(r, ref_vals_2, ':', color=color, alpha=0.4, lw=1.0, label=r"$1/r^2$")
             min_val = min(ref_vals_2.min(), vals.min())
     else:
         ax.plot(r, vals, lw=2, color=color)
@@ -560,7 +601,7 @@ def plot_distance_decay(case            : dict  = None,         # [-] Dictionary
             ref_vals_1 = vals[0] - 10 * np.log10(np.maximum(r, np.finfo(float).eps) / r[0])
             ref_vals_2 = vals[0] - 20 * np.log10(np.maximum(r, np.finfo(float).eps) / r[0])
             ax.plot(r, ref_vals_1, '--', color=color, alpha=0.4, lw=1.0, label=r"$1/r$")
-            ax.plot(r, ref_vals_2, '--', color=color, alpha=0.4, lw=1.0, label=r"$1/r^2$")
+            ax.plot(r, ref_vals_2, ':', color=color, alpha=0.4, lw=1.0, label=r"$1/r^2$")
             min_val = min(ref_vals_2.min(), vals.min())
 
     # Plot data from Ge2025
@@ -595,7 +636,8 @@ def plot_distance_decay(case            : dict  = None,         # [-] Dictionary
     ax.set_xlim(r.min(), r.max())
     ax.set_ylim(bottom=min_val)
 
-    fig.tight_layout()
+    if ax_in is None:
+        fig.tight_layout()
 
     return fig, ax
 
@@ -605,7 +647,8 @@ def plot_line(case            : dict  = None,         # [-] Dictionary containin
               absorption      : bool  = True,         # [-] Whether to apply absorption attenuation
               filter_under    : float = None,         # [Hz] Lower frequency cutoff (f >= filter_under)
               filter_over     : float = None,         # [Hz] Upper frequency cutoff (f <= filter_over)
-              figsize         : tuple = (10,5)):      # [-] Figure size
+              figsize         : tuple = (10,5),       # [-] Figure size
+              ax_in           : plt.Axes = None):     # [-] Optional external axes for subplots
     """
     Plots acoustic magnitude along an arbitrary straight line between two points.
 
@@ -645,7 +688,13 @@ def plot_line(case            : dict  = None,         # [-] Dictionary containin
     NFreqs = len(Freqs)
 
     mode = mode.upper()
-    fig, ax = plt.subplots(figsize=figsize)
+    
+    if ax_in is None:
+        fig, ax = plt.subplots(figsize=figsize)
+    else:
+        ax = ax_in
+        fig = ax.figure
+        
     title_extra = ""
     color = pu.get_case_color(case)
 
@@ -671,7 +720,7 @@ def plot_line(case            : dict  = None,         # [-] Dictionary containin
     min_val = vals.min()
     
     ax.grid(True, which='both', ls='--', alpha=0.7)
-    ax.fill_between(r, vals, min_val, alpha=0.1, color=color)
+    ax.fill_between(r, vals, 0, alpha=0.1, color=color)
 
     # Add text box with P1 and P2 coordinates for context
     coord_text = f"P1: {np.round(p1, 1)} m\nP2: {np.round(p2, 1)} m"
@@ -683,9 +732,10 @@ def plot_line(case            : dict  = None,         # [-] Dictionary containin
     ax.set_ylabel(unit_label)
     ax.set_title(f"{tag} - {mode} {title_extra}")
     ax.set_xlim(r.min(), r.max())
-    ax.set_ylim(bottom=min_val)
+    ax.set_ylim(vals.min(), vals.max())
 
-    fig.tight_layout()
+    if ax_in is None:
+        fig.tight_layout()
 
     return fig, ax
 
@@ -696,9 +746,10 @@ def plot_sliceXY(case            : dict  = None,         # [-] Dictionary contai
                  absorption      : bool  = True,         # [-] Whether to apply absorption attenuation
                  filter_under    : float = None,         # [Hz] Lower frequency cutoff (f >= filter_under)
                  filter_over     : float = None,         # [Hz] Upper frequency cutoff (f <= filter_over)
-                 structure       : bool = True,         # [-] Wheter to plot structure on slice
-                 figsize         : tuple = (7,7),       # [-] Figure size
-                 cmap            : str   = 'inferno'):   # [-] Contour colormap
+                 structure       : bool = True,          # [-] Wheter to plot structure on slice
+                 figsize         : tuple = (7,7),        # [-] Figure size
+                 cmap            : str   = 'inferno',    # [-] Contour colormap
+                 ax_in           : plt.Axes = None):     # [-] Optional external axes for subplots
     """
     Plots a 2D spatial slice in the XY plane of acoustic magnitudes.
 
@@ -740,7 +791,13 @@ def plot_sliceXY(case            : dict  = None,         # [-] Dictionary contai
     NFreqs = len(Freqs)
 
     mode = mode.upper()
-    fig, ax = plt.subplots(figsize=figsize)
+    
+    if ax_in is None:
+        fig, ax = plt.subplots(figsize=figsize)
+    else:
+        ax = ax_in
+        fig = ax.figure
+        
     title_extra = ""
     X, Y = np.meshgrid(x, y, indexing='ij')
 
@@ -782,7 +839,8 @@ def plot_sliceXY(case            : dict  = None,         # [-] Dictionary contai
     ax.set_xlim(x.min(), x.max())
     ax.set_ylim(y.min(), y.max())
 
-    fig.tight_layout()
+    if ax_in is None:
+        fig.tight_layout()
 
     return fig, ax
 
@@ -794,7 +852,8 @@ def plot_sliceXZ(case            : dict  = None,         # [-] Dictionary contai
                  filter_over     : float = None,         # [Hz] Upper frequency cutoff (f <= filter_over)
                  structure       : bool  = True,         # [-] Wheter to plot structure on slice
                  figsize         : tuple = (7,7),        # [-] Figure size
-                 cmap            : str   = 'inferno'):   # [-] Contour colormap
+                 cmap            : str   = 'inferno',    # [-] Contour colormap
+                 ax_in           : plt.Axes = None):     # [-] Optional external axes for subplots
     """
     Plots a 2D spatial slice in the XZ vertical plane of acoustic magnitudes.
 
@@ -836,7 +895,13 @@ def plot_sliceXZ(case            : dict  = None,         # [-] Dictionary contai
     NFreqs = len(Freqs)
 
     mode = mode.upper()
-    fig, ax = plt.subplots(figsize=figsize)
+    
+    if ax_in is None:
+        fig, ax = plt.subplots(figsize=figsize)
+    else:
+        ax = ax_in
+        fig = ax.figure
+        
     title_extra = ""
     X, Z = np.meshgrid(x, z, indexing='ij')
 
@@ -876,7 +941,8 @@ def plot_sliceXZ(case            : dict  = None,         # [-] Dictionary contai
     ax.set_xlim(x.min(), x.max())
     ax.set_ylim(z.min(), nodes[:,:,2].max() if structure else z.max())
 
-    fig.tight_layout()
+    if ax_in is None:
+        fig.tight_layout()
 
     return fig, ax
 
@@ -1118,12 +1184,3 @@ def compute_cylinder_metrics(case            : dict  = None,         # [-] Dicti
             print(f"  {'Power loss (W_sphere / W_cyl)':<{label_w}}: {power_loss_str}")
 
     return metrics
-
-        
-
-
-
-       
-
-
-

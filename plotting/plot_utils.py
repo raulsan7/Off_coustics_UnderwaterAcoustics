@@ -22,7 +22,7 @@ def parse_args():
         help = "Which acoustic method has been selected (default: images)"
     )
     parser.add_argument(
-        "--type", choices = ["monopile", "floating", "floating_shallow"],
+        "--type", type = str, choices = ["monopile", "floating", "floating_shallow", "comparison"],
         default = "monopile",
         help = "Which case to plot (default: monopile)"
     )
@@ -58,15 +58,13 @@ def build_npz_path(args: argparse.Namespace = None):
         tag_extra = "_shallow"
     else:
         tag_extra = ""
-    if args.label is not None:
-        args.label = "_" + args.label
-    else:
-        args.label = ""
-    
 
-    
+    label_suffix = ""
+    if args.label:
+        label_suffix = "_" + args.label
+        
     if args.method == "images":
-        npz_name = "plot_" + f"{tag}_" + f"SD{args.images}" + tag_extra + args.label + ".npz"
+        npz_name = "plot_" + f"{tag}_" + f"SD{args.images}" + tag_extra + label_suffix + ".npz"
         npz_name = Path(npz_name)
     else:
         raise ValueError("plot_utils.load_case(): no other method than 'images' is implemented yet")
@@ -102,6 +100,9 @@ def load_case(args: argparse.Namespace = None,  # [-] Parsed command-line argume
     case = {}
     case["Path"] = npz_path
     case["Case_type"] = d["Case_type"]
+
+    if "shallow" in args.type or "shallow" in str(npz_path):
+        case["Case_type"] = "Floating (shallow)"
 
     # Solver parameters: depends on acoustic method
     if args.method == "images":
@@ -216,6 +217,25 @@ def load_case(args: argparse.Namespace = None,  # [-] Parsed command-line argume
 
     return case
 
+def load_cases(args: argparse.Namespace = None, # [-] Parsed command-line arguments
+               verbose: bool = False):          # [-] if True, prints a list of keys available in the file
+
+    """
+    Loads one or all three cases depending on mode or comparison flag.
+    """
+
+    if not args.type == "comparison":
+        return load_case(args, verbose=verbose)
+    else:
+        args.type = "monopile"
+        case_monopile = load_case(args, verbose=verbose)
+        args.type = "floating"
+        case_floating = load_case(args, verbose=verbose)
+        args.type = "floating_shallow"
+        case_floating_shallow = load_case(args, verbose=verbose)
+
+        return [case_monopile, case_floating_shallow, case_floating]
+        
 def draw_direction_arrow(ax,                                # [-] Target axis. 3D vs 2D is auto-detected.
                           x              : float,           # [m] Tip location (in the horizontal plane).
                           y              : float,           # [m] Tip location (in the horizontal plane).
@@ -286,6 +306,7 @@ def get_case_color(case):           # [-] Dictionary containing simulation data
     Gets color based on case type
     """
     tag = case["Case_type"]
+
     if "Monopile" in tag:
         color = ps.AcademicStyle.CASE_COLORS[0]
     elif "shallow" in tag:
