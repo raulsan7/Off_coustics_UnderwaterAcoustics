@@ -739,6 +739,7 @@ def plot_line(case            : dict  = None,         # [-] Dictionary containin
 
     return fig, ax
 
+
 # ---------- Slice Plots ---------- #
 def plot_sliceXY(case            : dict  = None,         # [-] Dictionary containing simulation data
                  mode            : str   = 'OASPL',      # [-] Magnitude to plot: 'OASPL', 'SPL', 'SWL', 'ABS', 'REAL', 'IMAG', 'PHASE'
@@ -945,6 +946,7 @@ def plot_sliceXZ(case            : dict  = None,         # [-] Dictionary contai
         fig.tight_layout()
 
     return fig, ax
+
 
 # ---------- Compute metrics ---------- #
 def compute_sphere_metrics(case            : dict  = None,         # [-] Dictionary containing simulation data
@@ -1184,3 +1186,5 @@ def compute_cylinder_metrics(case            : dict  = None,         # [-] Dicti
             print(f"  {'Power loss (W_sphere / W_cyl)':<{label_w}}: {power_loss_str}")
 
     return metrics
+
+

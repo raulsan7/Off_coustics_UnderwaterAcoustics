@@ -6,8 +6,8 @@ import plotting.plot_style as ps
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
-
-def parse_args():
+# ---------- TURBINE UTILITIES ---------- #
+def parse_turbine_args():
     """
     Parses arguments from the terminal.
     """
@@ -45,8 +45,7 @@ def parse_args():
 
     return parser.parse_args()
 
-def build_npz_path(args: argparse.Namespace = None):
-
+def build_turbine_path(args: argparse.Namespace = None):
     
     if args.type == "monopile":
         tag = "mn"
@@ -73,8 +72,8 @@ def build_npz_path(args: argparse.Namespace = None):
     
     return npz_path
 
-def load_case(args: argparse.Namespace = None,  # [-] Parsed command-line arguments
-              verbose: bool = False):           # [-] if True, prints a list of keys available in the file
+def load_turbine(args   : argparse.Namespace = None,    # [-] Parsed command-line arguments
+                 verbose: bool = False):                # [-] if True, prints a list of keys available in the file
     """
     Loads all available data from .npz file coming from args.
 
@@ -83,7 +82,7 @@ def load_case(args: argparse.Namespace = None,  # [-] Parsed command-line argume
     - verbose : if True, prints an elegant list of keys available in the file
     """
     
-    npz_path = build_npz_path(args)
+    npz_path = build_turbine_path(args)
     print(f"Loading: {npz_path}")
 
     d = np.load(npz_path, allow_pickle=True)
@@ -217,25 +216,175 @@ def load_case(args: argparse.Namespace = None,  # [-] Parsed command-line argume
 
     return case
 
-def load_cases(args: argparse.Namespace = None, # [-] Parsed command-line arguments
-               verbose: bool = False):          # [-] if True, prints a list of keys available in the file
+def load_turbines(args: argparse.Namespace = None,      # [-] Parsed command-line arguments
+               verbose: bool = False):                  # [-] if True, prints a list of keys available in the file
 
     """
     Loads one or all three cases depending on mode or comparison flag.
     """
 
     if not args.type == "comparison":
-        return load_case(args, verbose=verbose)
+        return load_turbine(args, verbose=verbose)
     else:
         args.type = "monopile"
-        case_monopile = load_case(args, verbose=verbose)
+        case_monopile = load_turbine(args, verbose=verbose)
         args.type = "floating"
-        case_floating = load_case(args, verbose=verbose)
+        case_floating = load_turbine(args, verbose=verbose)
         args.type = "floating_shallow"
-        case_floating_shallow = load_case(args, verbose=verbose)
+        case_floating_shallow = load_turbine(args, verbose=verbose)
 
         return [case_monopile, case_floating_shallow, case_floating]
+
         
+# ---------- FARM UTILITIES ---------- #
+def parse_farm_args():
+    """
+    Parses arguments from the terminal.
+    """
+    parser = argparse.ArgumentParser(description="Parse arguments for plotting wind farms.")
+    parser.add_argument(
+        "--data_dir", type = str, default = "./farm_acoustic_data/",
+        help = "Directory where the .npz files are stored (default: ./farm_acoustic_data)"
+    )
+    parser.add_argument(
+        "--name", type = str, default = "Farm_2_DTU10MN.npz"
+    )
+    parser.add_argument(
+        "--save", action= "store_true",
+        help = "Saves generated plots."
+    )
+    parser.add_argument(
+        "--output_dir", type = str, default = "./figures",
+        help = "Path where plots will be saved (default: ./figures)"
+    )
+
+    return parser.parse_args()
+
+def build_farm_path(args: argparse.Namespace = None):
+
+    if args.name:
+        npz_path = Path(args.data_dir+args.name)
+        if npz_path.exists():
+            return npz_path
+    else:
+        raise RuntimeError("build_farm_path(): path does not exist")
+
+def load_farm(args   : argparse.Namespace = None,   # [-] Parsed command-line arguments
+              verbose: bool = False):               # [-] if True, prints a list of keys available in the file
+    """
+    Loads files from farm simulation
+    """
+
+    npz_path = build_farm_path(args)
+    print(f"Loading: {npz_path}")
+
+    d = np.load(npz_path, allow_pickle=True)
+    if verbose:
+        keys = sorted(d.keys())
+        print("Available data keys:")
+        print("--------------------")
+        for idx, key in enumerate(keys, start=1):
+            print(f"{idx:2d}. {key}")
+        print("--------------------")
+
+    # ---------- Create case dictionary ---------- #
+    case = {}
+    case["Path"]         = npz_path
+
+    # Farm parameters
+    case["Depth"]              = d["Depth"]
+    case["Num_turbines"]       = d["Num_Turbines"]
+    case["Method"]             = d["Method"]
+    case["p_ref"]              = d["p_ref"]
+    case["Turbine_parameters"] = d["Turbines"]
+    case["Farm_Name"]          = d.get("Farm_Name", npz_path.stem)
+    case["SolverParams"]       = d.get("SolverParams", None)
+
+    # Common variables
+    case["Freqs"] = d["Freqs"] if "Freqs" in d else None
+
+    # 1. Spectrum variables
+    case["has_spectrums"] = "P_spectrums" in d
+    if case["has_spectrums"]:
+        case["P_spectrums"]   = d["P_spectrums"]
+        case["Obs_spectrums"] = d["Obs_spectrums"]
+
+    # 2. Polar
+    case["has_polar"] = "P_polar" in d
+    if case["has_polar"]:
+        case["P_polar"]         = d["P_polar"]
+        case["Obs_polar"]       = d["Obs_polar"]
+        case["R_polar"]         = d["R_polar"]
+        case["Z_polar"]         = d["Z_polar"]
+        case["Theta_deg_polar"] = d["Theta_deg_polar"]
+        case["Center_polar"]    = d["Center_polar"]
+
+    # 3. Cylinder
+    case["has_cylinder"] = "P_cylinder" in d
+    if case["has_cylinder"]:
+        case["P_cylinder"]         = d["P_cylinder"]
+        case["R_cylinder"]         = d["R_cylinder"]
+        case["Z_cylinder"]         = d["Z_cylinder"]
+        case["Theta_deg_cylinder"] = d["Theta_deg_cylinder"]
+        case["Obs_cylinder"]       = d["Obs_cylinder"]
+        case["Center_cylinder"]    = d["Center_cylinder"]
+        case["dA_cylinder"]        = d.get("dA_cylinder", None)
+
+    # 4. Line
+    case["has_line"] = "P_line" in d
+    if case["has_line"]:
+        case["P_line"]         = d["P_line"]
+        case["P1_line"]        = d["P1_line"]
+        case["P2_line"]        = d["P2_line"]
+        case["Distances_line"] = d["Distances_line"]
+        case["Obs_line"]       = d["Obs_line"]
+        case["Logspace_line"]  = d["Logspace_line"]
+
+    # 5. Slice XY
+    case["has_slicexy"] = ("P_sliceXY" in d) or ("P_slicexy" in d)
+    if case["has_slicexy"]:
+        case["P_slicexy"]      = d.get("P_sliceXY", d.get("P_slicexy"))
+        case["Obs_slicexy"]    = d.get("Obs_slicexy", None)
+        case["X_slicexy"]      = d.get("X_sliceXY", d.get("X_slicexy"))
+        case["Y_slicexy"]      = d.get("Y_sliceXY", d.get("Y_slicexy"))
+        case["Z_slicexy"]      = d.get("Z_sliceXY", d.get("Z_slicexy"))
+        case["Center_slicexy"] = d.get("Center_sliceXY", d.get("Center_slicexy"))
+
+    # 6. Slice XZ
+    case["has_slicexz"] = ("P_sliceXZ" in d) or ("P_slicexz" in d)
+    if case["has_slicexz"]:
+        case["P_slicexz"]      = d.get("P_sliceXZ", d.get("P_slicexz"))
+        case["Obs_slicexz"]    = d.get("Obs_slicexz", None)
+        case["X_slicexz"]      = d.get("X_sliceXZ", d.get("X_slicexz"))
+        case["Z_slicexz"]      = d.get("Z_sliceXZ", d.get("Z_slicexz"))
+        case["Y_slicexz"]      = d.get("Y_sliceXZ", d.get("Y_slicexz"))
+        case["Center_slicexz"] = d.get("Center_sliceXZ", d.get("Center_slicexz"))
+
+    # 7. Vertical slice
+    case["has_slicevertical"] = "P_sliceVertical" in d
+    if case["has_slicevertical"]:
+        case["P_sliceV"]       = d["P_sliceVertical"]
+        case["Coords_sliceV"]  = d["Coords_sliceV"]
+        case["U_sliceV"]       = d["U_sliceV"]
+        case["Z_sliceV"]       = d["Z_sliceV"]
+        case["Azimuth_sliceV"] = d["Azimuth_sliceV"]
+        case["Center_sliceV"]  = d["Center_sliceV"]
+
+    # 8. Spheres
+    case["has_spheres"] = "P_spheres" in d
+    if case["has_spheres"]:
+        case["P_spheres"]       = d["P_spheres"]
+        case["Obs_spheres"]     = d["Obs_spheres"]
+        case["Centers_spheres"] = d["Centers_spheres"]
+        case["Radii_spheres"]   = d["Radii_spheres"]
+        case["N_theta"]         = d["N_theta"]
+        case["Nz_sphere"]       = d["Nz_sphere"]
+        case["dA_spheres"]      = d["dA_spheres"]
+
+    return case
+
+    
+# ---------- COMMON UTILITIES ---------- #
 def draw_direction_arrow(ax,                                # [-] Target axis. 3D vs 2D is auto-detected.
                           x              : float,           # [m] Tip location (in the horizontal plane).
                           y              : float,           # [m] Tip location (in the horizontal plane).
@@ -256,6 +405,7 @@ def draw_direction_arrow(ax,                                # [-] Target axis. 3
     -------
     The created artist (FancyArrow for 2D, Poly3DCollection for 3D).
     """
+
     if length is None or length <= 0:
         raise ValueError(f"draw_direction_arrow(): length must be > 0, got {length!r}")
 
@@ -301,20 +451,26 @@ def draw_direction_arrow(ax,                                # [-] Target axis. 3
 
     return head
 
-def get_case_color(case):           # [-] Dictionary containing simulation data
+def get_case_color(case: dict = None,           # [-] Dictionary containing simulation data
+                   tags: list = None):      # [-] List with tags
     """
-    Gets color based on case type
+    Gets color based on case type.
     """
-    tag = case["Case_type"]
 
-    if "Monopile" in tag:
-        color = ps.AcademicStyle.CASE_COLORS[0]
-    elif "shallow" in tag:
-        color = ps.AcademicStyle.CASE_COLORS[1]
-    else:
-        color = ps.AcademicStyle.CASE_COLORS[2]
+    def color_from_tag(tag: str):
+        if "Monopile" in tag:
+            return ps.AcademicStyle.CASE_COLORS[0]
+        if "shallow" in tag:
+            return ps.AcademicStyle.CASE_COLORS[1]
+        return ps.AcademicStyle.CASE_COLORS[2]
 
-    return color
+    if case is not None:
+        return color_from_tag(case["Case_type"])
+
+    if tags is not None:
+        return np.array([color_from_tag(tag) for tag in tags])
+
+    raise ValueError("get_case_color(): either 'case' or 'tags' must be provided")
 
 def get_line_styles():
     return ps.AcademicStyle.LINE_STYLES
