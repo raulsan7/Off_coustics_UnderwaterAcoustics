@@ -38,7 +38,7 @@ class WindTurbine(abc.ABC):
     def __init__(self,
                  debug     : bool       = False,                        # [-] Using debug mode will print aditional data
                  rootname  : str        = None,                         # [-] Name without extensions of the OpenFAST output files
-                 output_dir: str        = "./OP_output/",               # [-] OpenFAST output directory   
+                 output_dir: str        = "../OP_output/",              # [-] OpenFAST output directory   
                  save_dir  : str        = "./turbine_acoustic_data/",   # [-] Directory to save acoustic results
                  save_name : str        = None,                         # [-] Complete name of the acoustic file to save (overrides save_label)
                  WindSpeed : float      = None,                         # [m/s] Wind Speed in norm

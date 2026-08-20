@@ -61,7 +61,7 @@ class DTU10MWMonopile(WindTurbine):
         self.wet_area = 848.12   # [m^2] Wetted area
 
         # Hardcode where data should be located
-        self._path_rpm = Path(__file__).parent.parent / "wind_speed_curves_DTU_10MW" / "rpm_ws.csv"
+        self._path_rpm = Path(__file__).parent.parent.parent / "wind_speed_curves_DTU_10MW" / "rpm_ws.csv"
 
         if not self._path_rpm.exists(): raise FileNotFoundError(f"RPM curve file not found: {self._path_rpm}")
         
