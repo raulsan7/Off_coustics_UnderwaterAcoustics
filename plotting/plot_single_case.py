@@ -193,6 +193,10 @@ def plot_spectrum(case         : dict  = None,      # [-] Dictionary containing 
     AxisPos   = case["AxisPos"]
     p_ref     = case["p_ref"]
 
+    if not pu.is_valid(p):
+        print("plot_spectrum(): NaN or inf found in pressure array, skipping")
+        return None, None
+
     # Distance to turbine axis
     distances = np.sqrt((Observers[:,0] - AxisPos[0])**2 + (Observers[:,1] - AxisPos[1])**2)
 
@@ -261,6 +265,7 @@ def plot_spectrum(case         : dict  = None,      # [-] Dictionary containing 
     ax.set_xlabel("Frequency [Hz]")
     ax.set_title(tag)
     ax.grid(True, which='both', ls='--', alpha=0.4)
+    ax.set_ylim(bottom=0.)
 
     if do_thresholds:
         ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.16), ncol=3, frameon=False)
@@ -306,6 +311,10 @@ def plot_polar(case             : dict  = None,        # [-] Dictionary containi
     r          = case["R_polar"]
     Observers  = case["Obs_polar"]
     cx, cy, cz = case["Center_polar"][0], case["Center_polar"][1], case["Z_polar"]
+
+    if not pu.is_valid(p):
+            print("plot_polar(): NaN or inf found in pressure array, skipping")
+            return None, None
 
     theta_rad  = np.deg2rad(theta)
     fmin, fmax = Freqs.min(), max(Freqs.max(), 1000)
@@ -360,6 +369,7 @@ def plot_polar(case             : dict  = None,        # [-] Dictionary containi
         if all_oaspl_vals:
             vals = np.concatenate(all_oaspl_vals)
             rmin, rmax = vals.min(), vals.max()
+            if rmax> 0: rmin = max(0., rmin)
             margin = abs(rmax-rmin) * 0.1 if rmax != rmin else abs(rmin) * 0.1
             if margin == 0: margin = 1.0
             ax.set_rmin(rmin - margin)
@@ -429,6 +439,10 @@ def plot_cylinder(case            : dict = None,        # [-] Dictionary contain
     observers = case["Obs_cylinder"]
     cx, cy    = case["Center_cylinder"]
 
+    if not pu.is_valid(p):
+            print("plot_cylinder(): NaN or inf found in pressure array, skipping")
+            return None, None
+
     nf, ntheta, nz = len(Freqs), len(theta), len(z)
 
     # Reshape
@@ -492,9 +506,15 @@ def plot_cylinder(case            : dict = None,        # [-] Dictionary contain
     vals = vals.reshape((ntheta, nz))
     vals_plot = np.append(vals, vals[0:1, :], axis=0)
 
+    # Min range and their
+    max_val = np.nanmax(vals_plot)
+    min_val = max_val / 2.0
+    custom_levels = np.linspace(min_val, max_val, 60)
+    line_levels = custom_levels[::2]
+
     # Matplotlib contour expects Z shape (len(y), len(x)), so transpose vals_plot
-    contour_set = ax.contourf(theta_plot, z, vals_plot.T, levels=60, cmap=cmap)
-    ax.contour(theta_plot, z, vals_plot.T, levels=30, colors='k', linewidths=0.4, alpha=0.5)
+    contour_set = ax.contourf(theta_plot, z, vals_plot.T, levels=custom_levels, cmap=cmap, extend='min')
+    ax.contour(theta_plot, z, vals_plot.T, levels=line_levels, colors='k', linewidths=0.4, alpha=0.5)
     cbar = fig.colorbar(contour_set, ax=ax, orientation='vertical', pad=0.02)
     cbar.set_label(unit_label)
 
@@ -544,6 +564,10 @@ def plot_distance_decay(case            : dict  = None,         # [-] Dictionary
     rlim      = case["Distances_decay"]
     p_ref     = case["p_ref"]
     do_log    = case["Logspace_decay"]
+
+    if not pu.is_valid(p):
+            print("plot_distance_decay(): NaN or inf found in pressure array, skipping")
+            return None, None
 
     Nfreqs, Nr = len(Freqs), len(r)
 
@@ -672,6 +696,10 @@ def plot_line(case            : dict  = None,         # [-] Dictionary containin
     p_ref     = case["p_ref"]
     do_log    = case["Logspace_line"]
 
+    if not pu.is_valid(p):
+        print("plot_line(): NaN or inf found in pressure array, skipping")
+        return None, None
+
     Nfreqs, Nr = len(Freqs), len(r)
 
     # Filter frequencies
@@ -775,6 +803,10 @@ def plot_sliceXY(case            : dict  = None,         # [-] Dictionary contai
     p_ref     = case["p_ref"]
     cx, cy    = case["Center_slicexy"]
 
+    if not pu.is_valid(p):
+        print("plot_sliceXY(): NaN or inf found in pressure array, skipping")
+        return None, None
+
     Nfreqs, nx, ny = len(Freqs), len(x), len(y)
     distances = np.sqrt((observers[..., 0] - cx)**2 + (observers[..., 1] - cy)**2)
 
@@ -877,6 +909,10 @@ def plot_sliceXZ(case            : dict  = None,         # [-] Dictionary contai
     Freqs     = case["Freqs"]
     observers = case["Obs_slicexz"]         # Observer grid (nx, nz, 3)
     p_ref     = case["p_ref"]
+
+    if not pu.is_valid(p):
+        print("plot_sliceXZ(): NaN or inf found in pressure array, skipping")
+        return None, None
     
     cx, cz = np.mean(x), np.mean(z)
     Nfreqs, nx, nz = len(Freqs), len(x), len(z)
@@ -923,10 +959,16 @@ def plot_sliceXZ(case            : dict  = None,         # [-] Dictionary contai
         if absorption and mode == 'SPL': vals = au.add_absorption(f, vals, distances)
 
     # Plot
-    contour_set = ax.contourf(X, Z, vals, levels=60, cmap=cmap)
+    # Min range and their
+    max_val = np.nanmax(vals)
+    min_val = max_val / 2.0
+    custom_levels = np.linspace(min_val, max_val, 60)
+    line_levels = custom_levels[::2]
+
+    contour_set = ax.contourf(X, Z, vals, levels=custom_levels, cmap=cmap, extend='min')
     cbar = fig.colorbar(contour_set, ax=ax, orientation='horizontal', pad=0.1)
     cbar.set_label(unit_label)
-    if abs(x[-1]-x[0]) == abs(z[-1]-z[0]): ax.set_aspect('equal')
+    if abs(x[-1]-x[0]) == abs(z[-1]-z[0]): ax.set_aspect('equal')    
 
     if structure:
             try:
@@ -981,6 +1023,10 @@ def compute_sphere_metrics(case            : dict  = None,         # [-] Diction
     p_ref   = case["p_ref"]
     n_theta = case["N_theta"]
     nz      = case["Nz_sphere"]
+
+    if not pu.is_valid(p):
+        print("compute_sphere_metrics(): NaN or inf found in pressure array, skipping")
+        return None
 
     A_wet = case.get("wet_area", 848.12 if "Monopile" in tag else 9359.07)
     print("WARNING compute_sphere_metrics(): Wetted Area is harcoded. OUTPUT FROM WT")
@@ -1097,6 +1143,10 @@ def compute_cylinder_metrics(case            : dict  = None,         # [-] Dicti
     z       = case["Z_cylinder"]
     theta   = case["Theta_deg_cylinder"]
     p_ref   = case["p_ref"]
+
+    if not pu.is_valid(p):
+            print("compute_cylinder_metrics(): NaN or inf found in pressure array, skipping")
+            return None
     
     n_theta, nz = len(theta), len(z)
 

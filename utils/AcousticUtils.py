@@ -25,6 +25,7 @@ def pressure_to_SPL(p, p_ref=1e-6, absorption=False, freq=None, distance=None):
     """
     p = np.asarray(p, dtype=complex)
     p_rms = np.abs(p)/np.sqrt(2)            # p_rms(fi)
+    p_rms = np.maximum(p_rms, p_ref)
 
     spl = 20.0 * np.log10(p_rms / p_ref)
 
@@ -53,7 +54,7 @@ def SPL_to_OASPL(spl, axis=0):
     """
     spl = np.asarray(spl, dtype=float)
 
-    return 10.0 * np.log10(np.sum(10 ** (spl / 10), axis=axis))
+    return 10.0 * np.log10(np.sum(10 ** (spl / 10), axis=axis)+1e-6)
 
 def pressure_to_OASPL(p, p_ref=1e-6, absorption=False, freq=None, distance=None, axis=0):
     """

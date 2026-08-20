@@ -13,13 +13,13 @@ def main():
 
     # Select plot
     # p.plot_structure(case, mode='xy')
-    # p.plot_spectrums(case, do_thresholds=True)
+    p.plot_spectrums(case, do_thresholds=True)
     # p.plot_polar(case)
     # p.plot_cylinder(case)
     # p.plot_line(case)
-    p.plot_sliceXY(case)
-    p.plot_sliceXZ(case)
-    p.plot_sliceVertical(case)
+    # p.plot_sliceXY(case)
+    # p.plot_sliceXZ(case)
+    # p.plot_sliceVertical(case)
 
 
     plt.show()

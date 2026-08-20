@@ -926,7 +926,7 @@ class WindTurbine(abc.ABC):
         self
         """
 
-
+        if self.acoustic_solver.get_name() != "Images Method": return None
         self.check_acoustic_solver()
 
         # Check defaults

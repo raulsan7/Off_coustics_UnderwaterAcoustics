@@ -18,7 +18,8 @@ def parse_turbine_args():
         help = "Directory where the .npz files are stored (default: ./turbine_acoustic_data)"
     )
     parser.add_argument(
-        "--method", type = str, default = "images",
+        "--method", type = str, choices = ["images", "analyticalNM"],
+        default = "images",
         help = "Which acoustic method has been selected (default: images)"
     )
     parser.add_argument(
@@ -65,8 +66,11 @@ def build_turbine_path(args: argparse.Namespace = None):
     if args.method == "images":
         npz_name = "plot_" + f"{tag}_" + f"SD{args.images}" + tag_extra + label_suffix + ".npz"
         npz_name = Path(npz_name)
+    elif args.method == "analyticalNM":
+        npz_name = "plot_" + f"{tag}_" + f"ANM" + tag_extra + label_suffix + ".npz"
+        npz_name = Path(npz_name)
     else:
-        raise ValueError("plot_utils.load_case(): no other method than 'images' is implemented yet")
+        raise ValueError(f"plot_utils.load_turbine(): unavailable method {args.mehtod}")
     
     npz_path = args.data_dir / npz_name
     
@@ -106,17 +110,31 @@ def load_turbine(args   : argparse.Namespace = None,    # [-] Parsed command-lin
     # Solver parameters: depends on acoustic method
     if args.method == "images":
         solver_params = d["SolverParams"]
-        if isinstance(solver_params, np.ndarray) and solver_params.dtype == object and solver_params.shape == ():
-            solver_params = solver_params.item()
 
+        if isinstance(solver_params, np.ndarray) and solver_params.dtype == object and solver_params.shape == ():
+                        solver_params = solver_params.item()
+            
         if not isinstance(solver_params, dict):
-            raise TypeError("plot_utils.load_case(): SolverParams must be a dict after loading.")
+            raise TypeError("plot_utils.load_turbine(): SolverParams must be a dict after loading.")
 
         case["N_images"] = solver_params["N_images"]
         case["c_wat"]    = solver_params["c_wat"]
         case["rho_wat"]  = solver_params["rho_wat"]
+    elif args.method == "analyticalNM":
+        solver_params = d["SolverParams"]
+
+        if isinstance(solver_params, np.ndarray) and solver_params.dtype == object and solver_params.shape == ():
+                        solver_params = solver_params.item()
+            
+        if not isinstance(solver_params, dict):
+            raise TypeError("plot_utils.load_turbine(): SolverParams must be a dict after loading.")
+
+        case["Nmodes"]  = solver_params["m"]
+        case["c_wat"]   = solver_params["c_wat"]
+        case["rho_wat"] = solver_params["rho_wat"]
     else:
-        raise ValueError("plot_utils.load_case(): no other method than 'images' is implemented yet")
+        raise ValueError(f"plot_utils.load_turbine(): unavailable method {args.method}")
+
 
     # Common variables
     case["Structure_nodes"] = d["Structure_nodes"]
@@ -263,7 +281,7 @@ def parse_farm_args():
 def build_farm_path(args: argparse.Namespace = None):
 
     if args.name:
-        npz_path = Path(args.data_dir+args.name)
+        npz_path = Path(args.data_dir+args.name+".npz")
         if npz_path.exists():
             return npz_path
     else:
@@ -522,3 +540,83 @@ def get_tubine_styles():
     ]
 
     return TURBINE_STYLES
+
+def is_valid(array):
+    """
+    Returns True only if the array has no missing or invalid numeric values.
+
+    Invalid entries include None, NaN, +inf and -inf.
+    Works for numpy arrays and Python lists/tuples with scalar elements.
+    """
+    if array is None:
+        return False
+
+    a = np.asarray(array)
+    if a.size == 0:
+        return True
+
+    kind = a.dtype.kind
+
+    # Fast vectorized paths for common numeric dtypes
+    if kind in ('f', 'i', 'u', 'b'):
+        # floats, ints, unsigned ints, bools
+        return bool(np.all(np.isfinite(a.astype(float))))
+
+    if kind == 'c':
+        # complex: check real and imag parts
+        return bool(np.all(np.isfinite(np.real(a))) and np.all(np.isfinite(np.imag(a))))
+
+    # Object arrays: try fast coercion to float where possible
+    if kind == 'O':
+        # quick None check
+        if np.any(a == None):
+            return False
+
+        try:
+            af = a.astype(float)
+        except Exception:
+            # mixed/heterogeneous objects: fall back to element-wise but short-circuit
+            for v in a.ravel():
+                if v is None:
+                    return False
+                if isinstance(v, (str, bytes)):
+                    continue
+                if isinstance(v, complex):
+                    if not (np.isfinite(v.real) and np.isfinite(v.imag)):
+                        return False
+                    continue
+                try:
+                    nv = float(v)
+                except Exception:
+                    # treat unknown non-numeric metadata as valid
+                    continue
+                if not np.isfinite(nv):
+                    return False
+            return True
+        else:
+            return bool(np.all(np.isfinite(af)))
+
+    # Other dtypes: attempt coercion to float, else fallback to safe per-element checks
+    try:
+        af = a.astype(float)
+        return bool(np.all(np.isfinite(af)))
+    except Exception:
+        for v in a.ravel():
+            if v is None:
+                return False
+            if isinstance(v, (str, bytes)):
+                continue
+            if isinstance(v, complex):
+                if not (np.isfinite(v.real) and np.isfinite(v.imag)):
+                    return False
+                continue
+            try:
+                nv = float(v)
+            except Exception:
+                continue
+            if not np.isfinite(nv):
+                return False
+        return True
+
+
+

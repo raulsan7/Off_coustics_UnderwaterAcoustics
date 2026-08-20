@@ -11,6 +11,7 @@ Date: 07/2026
 import gc
 import abc
 import numpy as np
+import scipy.special as sp
 
 
 class AcousticSolver(abc.ABC):
@@ -30,6 +31,7 @@ class AcousticSolver(abc.ABC):
         pass
 
 
+# ---------- Mehtod of Images ---------- #
 class MethodImages(AcousticSolver):
     """
     Image Method solver for single WindTurbine or WindFarm
@@ -63,7 +65,7 @@ class MethodImages(AcousticSolver):
         self.lw_R      = attenuation_lower
         self.eps       = eps
         self.p_ref     = p_ref
-        self.cluster = cluster
+        self.cluster   = cluster
         self._default_N_images = N_images
 
         if Lower_HBC is None or Upper_HBC is None or Upper_HBC <= Lower_HBC:
@@ -357,6 +359,299 @@ class MethodImages(AcousticSolver):
 
         # Sum all nodes contribution
         return np.sum(p_nodes, axis=2)
+
+
+# ---------- Analytical Normal Modes ---------- #
+class AnalyticalNormalModes(AcousticSolver):
+    """
+    Analytical Normal Modes solver for single WindTurbine or WindFarm
+    """
+
+        # ========== CONSTRUCTOR ========== #
+    def __init__(self,
+                 system,                            # [-] WindTurbine or WindFarm can be inputed
+                 Nmodes           : int   = None,   # [-] Number of normal modes to retain
+                 c_wat            : float = 1500.0, # [m/s] Speed of sound in fluid. Default: water --> 1500
+                 rho_wat          : float = 1025.,  # [kg/m^3] Fluid density. Default: water --> 1000
+                 Upper_HBC        : float = 0.,     # [m] z-coordinate of the upper reflecting plane (e.g. free surface)
+                 Lower_HBC        : float = None,   # [m] z-coordinate of the lower reflecting plane (e.g. seabed)
+                 eps              : float = 1e-12,  # [-] Regularization term to avoid division by zero in distances
+                 p_ref            : float = 1e-6,   # [Pa] Reference pressure
+                 cluster          : bool  = False,  # [-] Wheter the simulation is ran in a cluster or not (mor RAM if true)
+                 verbose          : bool  = True):  # [-] Flag to print more info
+
+        # Parse input
+        self.m         = Nmodes
+        self.c_wat     = c_wat
+        self.rho_wat   = rho_wat
+        self.Upper_HBC = Upper_HBC
+        self.Lower_HBC = Lower_HBC
+        self.eps       = eps
+        self.p_ref     = p_ref
+        self.cluster   = cluster
+        self.verbose   = verbose
+
+        if Lower_HBC is None or Upper_HBC is None or Upper_HBC <= Lower_HBC:
+            raise ValueError(f"AnalyticalNormalModes requires Upper_HBC({Upper_HBC}) > Lower_HBC ({Lower_HBC})")
+        else:
+            self.H = np.abs(self.Lower_HBC-self.Upper_HBC)
+
+        # If system has atribute 'turbines' is a WindFarm class and qe use it
+        # Else we assume a single WindTurbine and convert it to list
+        if hasattr(system, 'turbines'):
+            self.turbines = system.turbines
+        elif isinstance(system, list):
+            self.turbines = system
+        else:
+            self.turbines = [system]
+
+        # Ensure all turbines have matching depth
+        if any(turbine.Depth != self.H for turbine in self.turbines):
+            raise ValueError("Inputed boundary conditions do not match system's depth for one or more turbines")
+
+        # Compute number of modes to retain
+        if self.m is not None and self.m < 0:
+            raise ValueError(f"AnalyticalNormalModes requires m = {self.m} > 0")
+        
+        if self.m is None:
+            f_max = np.max(self.turbines[0].Freqs)
+            m_prop = int(np.floor(0.5 * (4. * self.H * f_max / self.c_wat + 1)))    # Strictly propagating modes for f_max
+            near_field_buffer = 5   # Margin for nearfield
+            self.m = int(max(1, m_prop + near_field_buffer))
+
+        # Precompute impedance correction
+        # self.corrected_F = {}
+        # for turbine in self.turbines:
+        #     self.corrected_F[turbine] = turbine.get_impedance_corrected_force(self.c_wat)
+
+        # Display mode information table
+        if self.verbose:
+            self._print_mode_summary()
+  
+
+    # ========== HELPERS ========== #
+    def get_name(self) -> str:
+        """
+        Return a human-readable name of the solver.
+
+        Returns
+        -------
+        str
+        """
+
+        return "Analytical Normal Modes"
+
+    def _print_mode_summary(self):
+        """
+        Prints a formatted summary table of the retained normal modes, 
+        their cutoff frequencies, and propagation behavior.
+        """
+
+        freqs = self.turbines[0].Freqs
+        f_min, f_max = np.min(freqs), np.max(freqs)
+        
+        # Evaluate frequency-dependent variables at f_max
+        k_medium = 2 * np.pi * f_max / self.c_wat
+
+        line_width = 115
+        print("\n" + "=" * line_width)
+        print(f"{'ANALYTICAL NORMAL MODES SETUP':^{line_width}}")
+        print("=" * line_width)
+        print(f"  Water Depth (H):       {self.H:.2f} m")
+        print(f"  Speed of Sound (c):    {self.c_wat:.2f} m/s")
+        print(f"  Frequency Band:        {f_min:.2f} Hz - {f_max:.2f} Hz")
+        print(f"  Retained Modes (m):    {self.m}")
+        print(f"  * Note: k_rm and Horiz. Wavelength are evaluated at f_max ({f_max:.2f} Hz)")
+        print("-" * line_width)
+        print(f"  {'Mode':<5} | {'k_zm [rad/m]':<18} | {'Vert. WL [m]':<12} | {'f_cutoff [Hz]':<13} | {'k_rm [rad/m]':<20} | {'Horiz. WL [m]':<13} | {'Status'}")
+        print("-" * line_width)
+
+        if self.m <= 20:
+            modes_to_show = list(range(1, self.m + 1))
+        else:
+            modes_to_show = list(range(1, 11)) + [-1] + list(range(self.m - 4, self.m + 1))
+
+        for m_idx in modes_to_show:
+            if m_idx == -1:
+                print(f"  {'...':<5} | {'...':<18} | {'...':<12} | {'...':<13} | {'...':<20} | {'...':<13} | {'...'}")
+                continue
+
+            # Vertical properties (Frequency independent for hard bottom/surface)
+            k_zm_val = (2 * m_idx - 1) * np.pi / (2. * self.H)
+            k_zm_cplx = f"{k_zm_val:.4f}+0.0000j"
+            lambda_zm = 4. * self.H / (2 * m_idx - 1)
+            
+            f_c = (2 * m_idx - 1) * self.c_wat / (4. * self.H)
+
+            # Horizontal properties (Frequency dependent, evaluated at f_max)
+            kr_squared = k_medium**2 - k_zm_val**2
+            
+            if kr_squared >= 0:
+                k_rm_val = np.sqrt(kr_squared)
+                k_rm_cplx = f"{k_rm_val:.4f}+0.0000j"
+                lambda_rm = f"{2 * np.pi / k_rm_val:.2f}"
+                status = "Propagating"
+            else:
+                k_rm_val = np.sqrt(np.abs(kr_squared))
+                k_rm_cplx = f"0.0000+{k_rm_val:.4f}j"
+                lambda_rm = "N/A (Decays)"
+                status = "Evanescent"
+
+            print(f"  {m_idx:<5d} | {k_zm_cplx:<18} | {lambda_zm:<12.2f} | {f_c:<13.2f} | {k_rm_cplx:<20} | {lambda_rm:<13} | {status}")
+
+        print("=" * line_width + "\n")
+
+    # ========== COMPUTE PRESSURE ========== #
+    def compute_pressure(self,
+                         observers : np.ndarray = None,        # [m] Observers coordinates array shape(:,3)
+                         block_size: int        = 256):        # [-] Number of observers to process simultaneously
+        """
+        Compute acoustic pressure at observer positions for a given source system.
+
+        Returns
+        -------
+        np.ndarray, shape (n_freq, n_obs)
+            Complex pressure at each frequency and observer.
+        """
+
+        if observers is None: raise ValueError("AnalyticalNormalModes.compute_pressure(): observers cannot be None")
+
+        ndim = observers.ndim
+        coords = observers.shape[-1]
+
+        if ndim != 2 or coords != 3:
+            raise ValueError("AnalyticalNormalModes.compute_pressure(): observer must have shape(Nobservers, 3)")
+        
+        # Initialize pressure matrix
+        nf = len(self.turbines[0].Freqs)
+        no = len(observers)
+        total_pressure = np.zeros((nf, no), dtype=complex)
+        
+        if not self.cluster: block_size = 1
+
+        # Linear superposition
+        if self.cluster:
+            for nturb, turbine in enumerate(self.turbines):
+        
+                if len(self.turbines) > 1: print(f"\nTurbine {nturb+1}/{len(self.turbines)}: ")
+                total_blocks = int(np.ceil(no / block_size))
+        
+                for start_idx in range(0, no, block_size):
+                    end_idx = min(start_idx + block_size, no)
+                    obs_block = observers[start_idx:end_idx]
+        
+                    # Compute pressure for the entire block at once
+                    p_block = self.dipolar_pressure_NM(obs_block, turbine.Freqs, turbine.x, turbine.F)
+                    total_pressure[:, start_idx:end_idx] += p_block
+        
+                    current_block = (start_idx // block_size) + 1
+                    print(f"  Progress: Block {current_block}/{total_blocks} ({end_idx}/{no} observers)")
+        else:
+            for nturb, turbine in enumerate(self.turbines):
+        
+                if len(self.turbines) > 1: print(f"\nTurbine {nturb+1}/{len(self.turbines)}: ")
+        
+                for idx, obs in enumerate(observers):
+                    p_turb = self.dipolar_pressure_NM(obs[np.newaxis,:], turbine.Freqs, turbine.x, turbine.F)
+        
+                    total_pressure[:, idx] += p_turb[:,0]
+        
+                    if (idx+1) % 100 == 0: print(f"  Progress: {idx + 1}/{no}")
+        
+        return total_pressure
+        
+
+    # ========== METHOD ========== #
+    def Psi_m(self, 
+              m: int   = None,         # [-] Mode number
+              z: float = None):        # [m] Vertical coordinate of the observer
+        """
+        Computes analytical normal mode Psi_m(z) for a certain depth z. 
+        Harcoded to Psi_m(0) = 0; dPsi_m(H) = 0.
+        """
+
+        return np.sqrt(2.*self.rho_wat/self.H) * np.sin((2*m-1)*np.pi*z/(2.*self.H))
+
+    def dPsi_m_dz(self,
+                  m: int = None,            # [-] Mode number
+                  z: np.ndarray = None):    # [m] Vertical coordinate array
+        """
+        Computes the analytical derivative of the normal mode dPsi_m(z)/dz.
+        """
+        k_zm = (2*m-1)*np.pi/(2.*self.H)
+        return np.sqrt(2.*self.rho_wat/self.H) * k_zm * np.cos(k_zm*z)
+
+    def dipolar_pressure_NM(self,
+                            observer_pos  : np.ndarray = None,   # [m] Observer coordinates shape(Nchunk,3)
+                            freq          : np.ndarray = None,   # [Hz] Frequency array shape(nfreqs,)
+                            nodes_pos     : np.ndarray = None,   # [m] Coordinates array for all dipole nodes shape(Nnodes_total, 3)
+                            force         : np.ndarray = None):  # [N] Force array shape(nfreqs, Nnodes, 3)
+
+        observer_pos = np.asarray(observer_pos, dtype=float)
+
+        # Coordinate differences and distances
+        R_vec = observer_pos[:, np.newaxis, :2] - nodes_pos[np.newaxis, :, :2]
+
+        X, Y = R_vec[..., 0], R_vec[..., 1]
+
+        # Horizontal distance
+        R = np.linalg.norm(R_vec, axis=2)
+        R = np.where(R<self.eps, self.eps, R)       # Avoid division by 0
+
+        # Wavenumbers
+        k = 2* np.pi * freq / self.c_wat
+
+        # Preparation for calculations
+        Nobs = observer_pos.shape[0]
+        Nnodes = nodes_pos.shape[0]
+        Nfreqs = len(freq)
+        p_nodes = np.zeros((Nfreqs, Nobs, Nnodes), dtype=complex)
+
+        # Dipolar force components shape(Nfreqs, Nnodes)
+        Dx, Dy, Dz = force[:,:,0], force[:,:,1], force[:,:,2]
+        z_obs = observer_pos[:,2]
+        zs    = nodes_pos[:,2]
+
+        # Superposition of modes
+        for m in range(1, self.m+1):
+
+            k_zm = (2*m-1)*np.pi/(2.*self.H)
+
+            # Horizontal wavenumber
+            k_rm = np.sqrt((k+0j)**2 - k_zm**2)     # shape(Nfreqs)
+
+            # Modal argument for Hankel functions
+            k_rm_R = k_rm[:, np.newaxis, np.newaxis] * R[np.newaxis, :, :]
+
+            # Hankel functions
+            H0 = sp.hankel1(0, k_rm_R)
+            H1 = sp.hankel1(1, k_rm_R)
+
+            # Normal modes evaluations
+            psi_z   = self.Psi_m(m, z_obs)      # shape(Nobs,)
+            psi_zs  = self.Psi_m(m, zs)         # shape(Nnodes,)
+            dpsi_zs = self.dPsi_m_dz(m, zs)     # shape(Nnodes,)
+
+            # Component z (dipole depth effect)
+            term_z = Dz[:, np.newaxis, :] * (dpsi_zs[np.newaxis, np.newaxis, :] / self.rho_wat) * H0
+
+            # Components x,y (dipole horizontal directivity effect)
+            dx_part = Dx[:, np.newaxis, :] * (X[np.newaxis, :, :]/R[np.newaxis, :, :])
+            dy_part = Dy[:, np.newaxis, :] * (Y[np.newaxis, :, :]/R[np.newaxis, :, :])
+
+            term_xy = (psi_zs[np.newaxis, np.newaxis, :] * k_rm[:, np.newaxis, np.newaxis] /self.rho_wat) * H1 * (dx_part + dy_part)
+
+            # Acumulate contribution for mode m
+            p_m = psi_z[np.newaxis, :, np.newaxis] * (term_z + term_xy)
+            p_nodes += p_m
+
+        # Sum over all dipole sources and multiply by global coefficient
+        return (-1j/4.) * np.sum(p_nodes, axis=2)
+
+
+
+
+
 
 
 
