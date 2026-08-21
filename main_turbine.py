@@ -32,18 +32,16 @@ def main() -> None:
 
     t = DTU10MWMonopile(
         rootname   = "DTU_DeltaWind_mn_ws11.4",
-        save_name  = "plot_mn_ANM_corrected_F",
+        save_name  = "plot_mn_ANM",
         WindSpeed  = 11.4,
         Depth      = 30.0,
         Nmembers   = 8,
         Nnodes     = 5,
-        debug      = True,
-        save_dir   = "test"
     )
 
     # t = DTU10MWFloating(
     #     rootname   = "DTU_DeltaWind_fl_ws11.4",
-    #     save_name  = "plot_fl_SD30",
+    #     save_name  = "plot_fl_AMN",
     #     WindSpeed  = 11.4,
     #     Depth      = 350.0,
     #     Nmembers   = 9,
@@ -52,12 +50,11 @@ def main() -> None:
 
     # t = DTU10MWFloating(
     #     rootname   = "DTU_DeltaWind_fl_ws11.4",
-    #     save_name  = "plot_fl_SD30_shallow",
+    #     save_name  = "plot_fl_AMN_shallow",
     #     WindSpeed  = 11.4,
     #     Depth      = 30.0,
     #     Nmembers   = 9,
     #     Nnodes     = 9,
-    #     save_dir   = "test"
     # )
 
     # t = SAITEC2MWFloating(

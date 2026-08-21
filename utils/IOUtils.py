@@ -134,10 +134,10 @@ def get_SDsum_variables(SD_path : str  = None,      # [-] Path to OpenFAST SubDy
                 Nodes[i, j, :] = Nodes_flat[nid - 1, :]
             else:
                 Nodes[i, j, :] = np.nan
-    
+
     return Nodes
 
-def read_input_SD(filename: str = None,             # [-] Path to OpenFAST SubDyn sum file
+def read_input_SD(filename: str = None,             # [-] Path to OpenFAST SubDyn output file
                   what    : str = "acceleration",   # [-] Name of the output to read
                   skip    : int = 1,                # [-] Skips time data e.g. Time[::skip]
                   Nmembers: int = 8,                # [-] Number of OpenFAST members 
